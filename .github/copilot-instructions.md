@@ -18,12 +18,21 @@
     fix-md.prompt.md        # /fix-md — 修复 Markdown 格式 warning/error
     plan/
       个人研究助手.prompt.md  # /个人研究助手 — arXiv 论文搜索助手规划方案
+docker/
+  Dockerfile                # 运行镜像定义
+  build.sh                  # 构建脚本
+  run.sh                    # 启动脚本（--team NAME 选择团队）
 docs/
   overview.md               # 项目设计理念、能力要点、推进路线（详细版）
+teams/                      # ← .gitignore，不纳入版本管理
+  <team-name>/
+    config/                 # 运行时状态（credentials、sessions、logs）
+    workspace/              # 团队的 git repo（SOUL.md、IDENTITY.md、memory/ 等）
 readme.md                   # 项目简介（面向用户）
 ```
 
-> 这目前是一个**纯文档 / 配置研究仓库**，暂时没有需要构建或运行的代码。
+> Pantheon 是脚手架项目：提供 Docker 脚本和文档，团队数据（`teams/`）整体 gitignore。
+> 每个团队的 `workspace/` 是独立的 git repo，可推到各自的 remote。
 
 ---
 
