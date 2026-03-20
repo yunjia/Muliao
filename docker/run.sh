@@ -4,7 +4,7 @@
 # ==============================================================================
 #
 # Usage:
-#   run.sh [options] [image_tag]
+#   run.sh [options]
 #   run.sh --help
 #
 # Description:
@@ -16,7 +16,6 @@
 #   - node:24-bookworm 作为基础镜像（upstream，无需定制 image）
 #   - ~/.openclaw 持久化挂载（配置 + workspace + session 全部保留）
 #   - X11 passthrough，支持有头 Chromium（GUI 浏览器模式）
-#   - NVIDIA GPU 自动检测
 #   - --shm-size 2g，防止 Chromium OOM
 #   - --cap-add SYS_ADMIN，支持 browser sandbox（比 --privileged 更保守）
 #
@@ -29,25 +28,22 @@
 # Options:
 #   --restart         强制删除并重新创建容器
 #   --name NAME       容器名称（默认：openclaw）
-#   --node VERSION    Node 主版本号（22|24，默认：24）
-#   --network MODE    网络模式：bridge（默认）| host
+#   --network MODE    网络模式：host（默认）| bridge
 #   --team NAME       团队名称，对应 teams/<NAME>/（默认：default）
 #   --build           强制重新构建本地镜像（docker/Dockerfile）
+#   --image TAG       Docker 镜像 tag（默认：ghcr.io/teabots/pantheon:latest）
 #   --no-browser      跳过 SYS_ADMIN cap 和 shm（不需要 GUI 浏览器时使用）
 #   --gateway         进入容器后直接启动 openclaw gateway（默认：bash）
 #   -h, --help        显示帮助
 #
-# Arguments:
-#   image_tag         直接指定 Docker 镜像 tag
-#
 # Examples:
-#   run.sh                          # 交互式 bash，node:24 镜像
-#   run.sh --network host           # host 网络（DDS/mDNS 多机发现）
+#   run.sh                          # 交互式 bash
+#   run.sh --network bridge         # bridge 网络（需要端口隔离时使用）
 #   run.sh --restart                # 强制重建容器
 #   run.sh --team hermes            # 启动 hermes 团队
 #   run.sh --gateway                # 直接启动 gateway
 #   run.sh --no-browser             # 无浏览器模式，更轻量
-#   run.sh node:22-bookworm         # 指定镜像
+#   run.sh --image ghcr.io/teabots/pantheon:dev  # 指定镜像
 # ==============================================================================
 
 set -euo pipefail
@@ -69,9 +65,8 @@ fi
 # --------------------------------------------------------------------------- #
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.."; pwd)"
 
-node_ver="24"
 container="openclaw"
-network="bridge"
+network="host"
 team_name="default"
 config_dir="${REPO_ROOT}/teams/${team_name}/config"
 workspace_dir="${REPO_ROOT}/teams/${team_name}/workspace"
@@ -79,12 +74,13 @@ browser_support=1
 gateway_mode=0
 restart=0
 build=0
+tag=""
 docker_args=()
 
 # --------------------------------------------------------------------------- #
 # Argument parsing
 # --------------------------------------------------------------------------- #
-options=$(getopt -o h --long restart,build,name:,node:,network:,team:,no-browser,gateway,help -- "$@")
+options=$(getopt -o h --long restart,build,name:,network:,team:,image:,no-browser,gateway,help -- "$@")
 eval set -- "$options"
 
 while true; do
@@ -97,10 +93,10 @@ while true; do
         build=1; shift ;;
     --name)
         container="$2"; shift 2 ;;
-    --node)
-        node_ver="$2"; shift 2 ;;
     --network)
         network="$2"; shift 2 ;;
+    --image)
+        tag="$2"; shift 2 ;;
     --team)
         team_name="$2"
         config_dir="${REPO_ROOT}/teams/${team_name}/config"
@@ -118,29 +114,17 @@ done
 # --------------------------------------------------------------------------- #
 # Image selection / build
 # --------------------------------------------------------------------------- #
-tag="${1:-}"
 local_tag="ghcr.io/teabots/pantheon:latest"
-if [[ -z "$tag" ]]; then
+if [[ -z "${tag:-}" ]]; then
     tag="$local_tag"
 fi
 
-# 使用本地 Dockerfile 构建镜像（自动或强制）
-if [[ "$tag" == "$local_tag" ]]; then
-    if [[ "$build" -eq 1 ]] || ! docker image inspect "${tag}" &>/dev/null; then
-        "${REPO_ROOT}/docker/build.sh" --node "${node_ver}" --tag "${tag}"
-    fi
+# 仅在 --build 时构建本地镜像
+if [[ "$build" -eq 1 ]]; then
+    "${REPO_ROOT}/docker/build.sh" --tag "${tag}"
 fi
 
 echo "Using image: ${tag}"
-
-# --------------------------------------------------------------------------- #
-# NVIDIA detection
-# --------------------------------------------------------------------------- #
-if command -v nvidia-smi &>/dev/null && nvidia-smi --version &>/dev/null; then
-    echo "NVIDIA driver detected, enabling GPU passthrough..."
-    docker_args+=(--runtime=nvidia --gpus=all)
-    docker_args+=(-e NVIDIA_DRIVER_CAPABILITIES=all)
-fi
 
 # --------------------------------------------------------------------------- #
 # Network
