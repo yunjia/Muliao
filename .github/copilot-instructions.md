@@ -1,6 +1,6 @@
-# Pantheon — Workspace Instructions
+# Muliao — Workspace Instructions
 
-**Pantheon** 是一个研究型仓库，探索如何用 **OpenClaw**（及类似框架）构建对**普通人更友好**的 AI 助手。
+**Muliao** 是一个研究型仓库，探索如何用 **OpenClaw**（及类似框架）构建对**普通人更友好**的 AI 助手。
 
 灵感来自 OpenClaw 在社区掀起的热潮——这里记录配置方案、Skill 实验和自动化计划，为"让 AI 助手真正走入日常生活"积累可复用的经验。
 
@@ -31,7 +31,7 @@ teams/                      # ← .gitignore，不纳入版本管理
 readme.md                   # 项目简介（面向用户）
 ```
 
-> Pantheon 是脚手架项目：提供 Docker 脚本和文档，团队数据（`teams/`）整体 gitignore。
+> Muliao 是脚手架项目：提供 Docker 脚本和文档，团队数据（`teams/`）整体 gitignore。
 > 每个团队的 `workspace/` 是独立的 git repo，可推到各自的 remote。
 
 ---

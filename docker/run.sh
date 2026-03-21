@@ -13,7 +13,7 @@
 #   不依赖 OpenClaw 官方镜像，从标准 Node.js 镜像启动。
 #
 # Features:
-#   - Pantheon 自定义镜像（预装 OpenClaw + gosu + 常用依赖）
+#   - Muliao 自定义镜像（预装 OpenClaw + gosu + 常用依赖）
 #   - PUID/PGID 动态 UID 映射，bind mount 归属自动匹配宿主机
 #   - ~/.openclaw 持久化挂载（配置 + workspace + session 全部保留）
 #   - npm 全局包写入容器可写层，restart 后保留（不再使用 tmpfs）
@@ -33,7 +33,7 @@
 #   --network MODE    网络模式：host（默认）| bridge
 #   --team NAME       团队名称，对应 teams/<NAME>/（默认：default）
 #   --build           强制重新构建本地镜像（docker/Dockerfile）
-#   --image TAG       Docker 镜像 tag（默认：ghcr.io/teabots/pantheon:latest）
+#   --image TAG       Docker 镜像 tag（默认：ghcr.io/teabots/muliao:latest）
 #   --no-browser      跳过 SYS_ADMIN cap 和 shm（不需要 GUI 浏览器时使用）
 #   --gateway         进入容器后直接启动 openclaw gateway（默认：bash）
 #   -h, --help        显示帮助
@@ -45,7 +45,7 @@
 #   run.sh --team hermes            # 启动 hermes 团队
 #   run.sh --gateway                # 直接启动 gateway
 #   run.sh --no-browser             # 无浏览器模式，更轻量
-#   run.sh --image ghcr.io/teabots/pantheon:dev  # 指定镜像
+#   run.sh --image ghcr.io/teabots/muliao:dev  # 指定镜像
 # ==============================================================================
 
 set -euo pipefail
@@ -116,7 +116,7 @@ done
 # --------------------------------------------------------------------------- #
 # Image selection / build
 # --------------------------------------------------------------------------- #
-local_tag="ghcr.io/teabots/pantheon:latest"
+local_tag="ghcr.io/teabots/muliao:latest"
 if [[ -z "${tag:-}" ]]; then
     tag="$local_tag"
 fi

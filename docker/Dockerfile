@@ -1,5 +1,5 @@
 # =============================================================================
-# Pantheon — OpenClaw Runtime Image
+# Muliao — OpenClaw Runtime Image
 # =============================================================================
 # Description:
 #   基于上游 node:24-bookworm，为 OpenClaw 添加必要的系统依赖。
