@@ -189,9 +189,8 @@ if ! docker inspect "${container}" &>/dev/null; then
     docker run -itd \
         --name "${container}" \
         \
-        `# 以 root 启动 entrypoint，完成 UID/GID 映射后 gosu 降权为 node` \
-        `# Dockerfile 设置了 USER node，所以 docker exec / VS Code attach 默认是 node` \
-        --user root:root \
+        `# PUID/PGID: entrypoint 将容器内 node 用户映射到宿主机 UID/GID` \
+        `# bind mount 文件归属自动匹配，docker exec / VS Code attach 默认 node 用户` \
         -e PUID=$(id -u) -e PGID=$(id -g) \
         -e HOME=/home/node \
         \
@@ -228,7 +227,7 @@ fi
 # --------------------------------------------------------------------------- #
 if [[ "$gateway_mode" -eq 1 ]]; then
     echo "Starting OpenClaw gateway in container ${container}..."
-    docker exec -it "${container}" openclaw gateway --port 18789 --verbose
+    docker exec -u node -it "${container}" openclaw gateway --port 18789 --verbose
 else
     echo "Dropping into bash in container ${container}..."
     echo ""
@@ -240,5 +239,5 @@ else
     echo "  # Then in ~/.openclaw/openclaw.json:"
     echo "  # { \"browser\": { \"enabled\": true, \"headless\": true, \"noSandbox\": true } }"
     echo ""
-    docker exec -it "${container}" bash
+    docker exec -u node -it "${container}" bash
 fi

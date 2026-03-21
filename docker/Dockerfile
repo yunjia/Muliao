@@ -20,7 +20,8 @@
 #   - gosu + entrypoint 降权：通过 PUID/PGID 动态映射宿主机 UID/GID
 #   - OpenClaw 预装到镜像层（/usr/local），restart / recreate 后始终可用
 #
-# User: 默认以 root 启动，entrypoint.sh 通过 gosu 降权为 node
+# User: 容器默认以 root 启动，entrypoint 通过 gosu 降权为 node
+# docker exec / VS Code attach 时使用 -u node 指定用户
 # =============================================================================
 
 ARG NODE_VER=24
@@ -63,10 +64,6 @@ RUN npm install -g openclaw@latest && npm cache clean --force
 # Entrypoint：PUID/PGID 动态映射 + gosu 降权
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
-
-# docker exec / VS Code attach 默认以 node 用户进入
-# run.sh 通过 --user root:root 覆盖，使 entrypoint 以 root 启动做 UID 映射
-USER node
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["bash"]

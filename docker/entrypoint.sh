@@ -27,14 +27,8 @@ if [ "$(id -u)" = "0" ]; then
     cur_uid=$(id -u node)
     cur_gid=$(id -g node)
 
-    if [ "$PGID" != "$cur_gid" ]; then
-        groupmod -g "$PGID" node
-    fi
-
-    if [ "$PUID" != "$cur_uid" ]; then
-        usermod -u "$PUID" -o node
-    fi
-
+    [ "$PGID" != "$cur_gid" ] && groupmod -g "$PGID" node
+    [ "$PUID" != "$cur_uid" ] && usermod -u "$PUID" -o node
     chown node:node /home/node
 
     exec gosu node "$@"
