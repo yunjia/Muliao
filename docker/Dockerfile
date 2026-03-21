@@ -17,9 +17,10 @@
 #   - node 用户 passwordless sudo（可 sudo apt install 任意包）
 #   - 常见 Skill 依赖预装（ffmpeg、jq、ripgrep 等）
 #   - Chromium sandbox 所需依赖
-#   - 运行时仍以非 root（node）用户启动，bind mount 归属一致
+#   - gosu + entrypoint 降权：通过 PUID/PGID 动态映射宿主机 UID/GID
+#   - OpenClaw 预装到镜像层（/usr/local），restart / recreate 后始终可用
 #
-# User: node (UID: 1000)
+# User: 默认以 root 启动，entrypoint.sh 通过 gosu 降权为 node
 # =============================================================================
 
 ARG NODE_VER=24
@@ -28,6 +29,7 @@ FROM node:${NODE_VER}-bookworm
 # Install sudo and common Skill/browser dependencies as root
 RUN apt-get update && apt-get install -y --no-install-recommends \
         sudo \
+        gosu \
         # 常用 Skill 依赖
         ffmpeg \
         jq \
@@ -55,4 +57,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # 将 node 用户加入 sudoers（passwordless，对齐 teabot-dev 惯例）
 RUN echo "node ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
+# 预装 OpenClaw（写入 /usr/local，镜像层永久保留）
+RUN npm install -g openclaw@latest && npm cache clean --force
+
+# Entrypoint：PUID/PGID 动态映射 + gosu 降权
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# docker exec / VS Code attach 默认以 node 用户进入
+# run.sh 通过 --user root:root 覆盖，使 entrypoint 以 root 启动做 UID 映射
 USER node
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["bash"]

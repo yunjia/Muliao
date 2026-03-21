@@ -1,0 +1,8 @@
+{
+  "github.copilot.chat.commitMessageGeneration.instructions": [
+    // {
+    //     "text": "遵循 Conventional Commits，type/scope 英文，描述用中文，不超过 50 字，不加句号结尾。scope 用模块名如 docker, docs 等。"
+    // }
+    { "file": ".github/prompts/commit.prompt.md" }
+  ],
+}

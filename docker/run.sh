@@ -13,8 +13,10 @@
 #   不依赖 OpenClaw 官方镜像，从标准 Node.js 镜像启动。
 #
 # Features:
-#   - node:24-bookworm 作为基础镜像（upstream，无需定制 image）
+#   - Pantheon 自定义镜像（预装 OpenClaw + gosu + 常用依赖）
+#   - PUID/PGID 动态 UID 映射，bind mount 归属自动匹配宿主机
 #   - ~/.openclaw 持久化挂载（配置 + workspace + session 全部保留）
+#   - npm 全局包写入容器可写层，restart 后保留（不再使用 tmpfs）
 #   - X11 passthrough，支持有头 Chromium（GUI 浏览器模式）
 #   - --shm-size 2g，防止 Chromium OOM
 #   - --cap-add SYS_ADMIN，支持 browser sandbox（比 --privileged 更保守）
@@ -187,15 +189,11 @@ if ! docker inspect "${container}" &>/dev/null; then
     docker run -itd \
         --name "${container}" \
         \
-        `# 以宿主机 uid/gid 运行，bind mount 文件归属一致` \
-        --user "$(id -u):$(id -g)" \
-        `# /home/node 作为 HOME，tmpfs 保证任意 uid 可写（重启后清空无妨）` \
-        `# exec 必须显式加：Docker tmpfs 默认带 noexec，否则 npm 安装的二进制无法执行` \
-        --tmpfs "/home/node:uid=$(id -u),gid=$(id -g),exec" \
+        `# 以 root 启动 entrypoint，完成 UID/GID 映射后 gosu 降权为 node` \
+        `# Dockerfile 设置了 USER node，所以 docker exec / VS Code attach 默认是 node` \
+        --user root:root \
+        -e PUID=$(id -u) -e PGID=$(id -g) \
         -e HOME=/home/node \
-        `# npm 全局前缀重定向到 tmpfs HOME，避免写入 root 所有的 /usr/local` \
-        -e NPM_CONFIG_PREFIX=/home/node/.npm-global \
-        -e "PATH=/home/node/.npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
         \
         `# X11 GUI 浏览器支持` \
         -e DISPLAY \
@@ -230,15 +228,11 @@ fi
 # --------------------------------------------------------------------------- #
 if [[ "$gateway_mode" -eq 1 ]]; then
     echo "Starting OpenClaw gateway in container ${container}..."
-    docker exec -it "${container}" bash -c "
-        command -v openclaw &>/dev/null || npm install -g openclaw@latest
-        openclaw gateway --port 18789 --verbose
-    "
+    docker exec -it "${container}" openclaw gateway --port 18789 --verbose
 else
     echo "Dropping into bash in container ${container}..."
     echo ""
     echo "Quick start inside the container:"
-    echo "  npm install -g openclaw@latest"
     echo "  openclaw onboard          # --install-daemon 在容器内无效，容器即进程管理器"
     echo ""
     echo "For GUI browser (Chromium headless):"
