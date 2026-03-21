@@ -2,7 +2,7 @@
 
 ## TL;DR
 
-将 Muliao 打包为**预装好的 RPi 5 成品设备**，用户拿到手后插电联网即可使用。底层仍是 Docker，用户通过 **`muliao.dev` 云端 PWA** 完成设备初始化和日常管理——手机浏览器访问 `muliao.dev`，PWA 通过云端中继与局域网内的 RPi 设备通信，将所有 IT 概念对用户完全隐藏。分两个大阶段推进：**Phase A（团队辅助部署）** → **Phase B（DIY 开箱即用）**。
+将 Muliao 打包为**预装好的 RPi 5 成品设备**，用户拿到手后插电联网即可使用。底层仍是 Docker，用户通过 **`muliao.io` 云端 PWA** 完成设备初始化和日常管理——手机浏览器访问 `muliao.io`，PWA 通过云端中继与局域网内的 RPi 设备通信，将所有 IT 概念对用户完全隐藏。分两个大阶段推进：**Phase A（团队辅助部署）** → **Phase B（DIY 开箱即用）**。
 
 ---
 
@@ -23,7 +23,7 @@
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│  muliao.dev（云端）                                  │
+│  muliao.io（云端）                                  │
 │  ┌──────────────┐  ┌──────────────┐  ┌────────────┐ │
 │  │ PWA 前端     │  │ Relay 服务   │  │ 用户账号   │ │
 │  │ (静态托管)   │  │ (WebSocket)  │  │ & 设备绑定 │ │
@@ -32,7 +32,7 @@
 └─────────┼─────────────────┼──────────────────────────┘
           │                  │
    用户手机浏览器      RPi 主动外连（outbound WebSocket）
-   访问 muliao.dev    无需端口转发 / NAT 穿透
+   访问 muliao.io    无需端口转发 / NAT 穿透
           │                  │
           ▼                  ▼
 ┌─────────────────────────────────────────┐
@@ -52,27 +52,27 @@
 
 用户触点：
   - Telegram / WhatsApp / 飞书 ←→ RPi（通过 IM 服务器中转）
-  - muliao.dev PWA ←→ RPi（通过云端 Relay 中转）
+  - muliao.io PWA ←→ RPi（通过云端 Relay 中转）
 ```
 
 ---
 
 ## 二、关键 UX 难题与方案
 
-### 核心交互界面：muliao.dev 云端 PWA
+### 核心交互界面：muliao.io 云端 PWA
 
-所有目标客户都是手机用户。用户访问 **`muliao.dev`**（云端托管的 PWA），通过云端中继与局域网内的 RPi 设备通信。可"添加到主屏幕"获得 App 级体验。
+所有目标客户都是手机用户。用户访问 **`muliao.io`**（云端托管的 PWA），通过云端中继与局域网内的 RPi 设备通信。可"添加到主屏幕"获得 App 级体验。
 
-**为什么是云端 PWA（`muliao.dev`）而非本地 Web（`muliao.local`）：**
-- 用户只需记住一个正常网址 `muliao.dev`，无需理解局域网地址
+**为什么是云端 PWA（`muliao.io`）而非本地 Web（`muliao.local`）：**
+- 用户只需记住一个正常网址 `muliao.io`，无需理解局域网地址
 - 彻底规避 mDNS 兼容性问题（Android 部分机型 / 部分路由器不支持 `.local`）
 - HTTPS 天然可用（云端域名正规证书），PWA 安装和 Service Worker 都需要 HTTPS
 - **不在同一 WiFi 也能管理设备**——出门在外也能查看助手状态、改设置
 - 后续加 Push Notification、用户账号体系、多设备管理都是顺理成章的事
 
 **设备发现与通信机制：**
-- RPi 启动后，Device Agent 主动通过 WebSocket 外连 `muliao.dev` 云端 Relay
-- 用户在 `muliao.dev` 登录后，PWA 通过 Relay 与自己绑定的设备通信
+- RPi 启动后，Device Agent 主动通过 WebSocket 外连 `muliao.io` 云端 Relay
+- 用户在 `muliao.io` 登录后，PWA 通过 Relay 与自己绑定的设备通信
 - 所有通信都是 RPi **主动外连**，无需端口转发、无需用户配置路由器
 - 参考：Home Assistant Cloud (Nabu Casa)、Plex Remote Access 均采用类似架构
 
@@ -93,8 +93,8 @@
 
 丽姐和文哲不知道什么是 API Key。这是非技术用户面前最大的障碍。
 
-**Phase A 方案（团队辅助 / muliao.dev 引导）：**
-- 由团队成员在设备出厂前完成 API Key 配置；或通过 muliao.dev PWA 远程引导用户完成
+**Phase A 方案（团队辅助 / muliao.io 引导）：**
+- 由团队成员在设备出厂前完成 API Key 配置；或通过 muliao.io PWA 远程引导用户完成
 - API Key 写入设备本地，不上传云端
 
 **Phase B 方案（DIY），可选路径：**
@@ -128,14 +128,14 @@
 
 用户插上网线/连上 WiFi 后，怎么找到设备？
 
-**在 `muliao.dev` 架构下，这个问题基本消失：**
-- RPi 启动后 Device Agent 主动连接 `muliao.dev` 云端
-- 用户在 `muliao.dev` 上看到设备自动上线，无需手动输入任何地址
+**在 `muliao.io` 架构下，这个问题基本消失：**
+- RPi 启动后 Device Agent 主动连接 `muliao.io` 云端
+- 用户在 `muliao.io` 上看到设备自动上线，无需手动输入任何地址
 - 设备发现 = 后端匹配（Device Agent 上报 → 云端关联到用户账号 → PWA 显示设备在线）
 
 **配对方式（首次绑定设备到用户账号）：**
 - **Phase A**：团队出厂前预绑定，用户无感
-- **Phase B**：设备附带配对码（印在说明卡片上 / OLED 屏显示），用户在 `muliao.dev` 输入配对码完成绑定
+- **Phase B**：设备附带配对码（印在说明卡片上 / OLED 屏显示），用户在 `muliao.io` 输入配对码完成绑定
 
 **离线 fallback（可选）：**
 - 保留 Avahi mDNS，设备仍可通过 `muliao.local` 局域网直连（备用）
@@ -143,7 +143,7 @@
 
 ### 难题 4: 首次联网（WiFi 配网）
 
-无屏设备的经典鸡生蛋问题：**设备还没联网 → 没法访问 muliao.dev → 没法配置 WiFi**。
+无屏设备的经典鸡生蛋问题：**设备还没联网 → 没法访问 muliao.io → 没法配置 WiFi**。
 
 **Phase A：网线直连（最简单）**
 - 说明卡写"请用网线连接路由器"，网线插上就有网，零配置
@@ -170,7 +170,7 @@ RPi 首次启动，检测到无网络连接
   │
   ├─ 提交 → RPi 尝试连接
   │   ├─ 成功 → 关闭热点 → 切到正常模式 → Device Agent 上线
-  │   │   └─ 页面提示："连接成功！请切回家庭 WiFi，打开 muliao.dev 继续"
+  │   │   └─ 页面提示："连接成功！请切回家庭 WiFi，打开 muliao.io 继续"
   │   └─ 失败 → 提示"密码可能不对，请重试"
   │
   └─ 后续启动：已保存的 WiFi 自动连接，无需重复配网
@@ -204,8 +204,8 @@ Step 1: 烧录系统镜像
   └─ 写入 cloud-init user-data，首次启动自动安装 Docker、拉取 Muliao 镜像、启用 systemd services
 
 Step 2: 首次启动 & 基础配置
-  └─ 接上网络，设备自动连接 muliao.dev 云端
-  └─ 通过 muliao.dev PWA 完成配置（或 SSH 辅助）：
+  └─ 接上网络，设备自动连接 muliao.io 云端
+  └─ 通过 muliao.io PWA 完成配置（或 SSH 辅助）：
       - 配对设备到用户账号
       - 配置 API Keys（Gemini / OpenAI / Anthropic）
       - 创建 Telegram Bot，写入 Token
@@ -251,13 +251,13 @@ Step 4: 交付
   │           └─ 弹出配网页面 → 选择家庭 WiFi → 输密码 → 连接成功
   │           └─ 手机切回家庭 WiFi
   │
-  ├─ 2. 手机浏览器访问 muliao.dev（扫说明卡上的二维码，或直接输入网址）
+  ├─ 2. 手机浏览器访问 muliao.io（扫说明卡上的二维码，或直接输入网址）
   │     └─ 看到欢迎页面："你好！让我们花 5 分钟把你的 AI 助手设置好"
   │
   ├─ 3. 配对设备
   │     └─ 输入说明卡上的配对码（6 位数字）→ 设备自动绑定到账号
   │
-  ├─ 4. 设置向导（muliao.dev）
+  ├─ 4. 设置向导（muliao.io）
   │     ├─ 选择场景："我想用来…" → 销售助手 / 研究助手
   │     ├─ 设置 Telegram（交互式截图引导）
   │     ├─ 配置 AI 能力（API Key 或付费订阅）
@@ -267,7 +267,7 @@ Step 4: 交付
   │     └─ "设置完成！现在去 Telegram 找 [你的助手名字] 说句话试试 👋"
   │     └─ 提示"添加到主屏幕"获得 App 级体验
   │
-  └─ 日常管理（muliao.dev，随时随地可访问）
+  └─ 日常管理（muliao.io，随时随地可访问）
         ├─ 系统状态：运行中 ✅ / 内存 48% / 存储 12%
         ├─ 助手设置：修改名字、调整推送频率
         └─ 系统更新：一键更新（或自动更新）
@@ -286,7 +286,7 @@ Step 4: 交付
 
 **Services 定义：**
 - `openclaw` — 主 Agent 容器（基于现有 Dockerfile）
-- `device-agent` — 设备代理（维持与 `muliao.dev` 云端 Relay 的 WebSocket 长连接，转发配置指令到本地）
+- `device-agent` — 设备代理（维持与 `muliao.io` 云端 Relay 的 WebSocket 长连接，转发配置指令到本地）
 - `watchtower` — 自动更新容器镜像（containrrr/watchtower）
 
 **关键设计：**
@@ -383,12 +383,12 @@ templates/
 
 **设置流程**：用户在 Web 门户选择场景后，`muliao-setup` 脚本将对应模板复制到 `teams/<name>/workspace/` 并应用 config overlay。
 
-### Step 4: muliao.dev 云端 PWA + Device Agent
+### Step 4: muliao.io 云端 PWA + Device Agent
 *依赖：Step 1（Compose 结构），Step 3（模板）*
 
 这是整个用户体验的核心入口。拆分为两个子项目：
 
-#### Step 4a: muliao.dev 云端服务（独立部署）
+#### Step 4a: muliao.io 云端服务（独立部署）
 
 **独立仓库 / 部署单元**（不在 RPi 上运行）
 
@@ -398,7 +398,7 @@ templates/
 - WebSocket Relay：负责转发 PWA ↔ Device Agent 之间的指令
 - 用户账号：邮箱 / 手机号注册，设备绑定（一个账号可绑多台设备）
 - 托管：Cloudflare Pages (静态) + Fly.io / Railway (后端 + Relay)
-- 域名：`muliao.dev`，HTTPS 标配
+- 域名：`muliao.io`，HTTPS 标配
 
 **PWA 特性：**
 - `manifest.json`：图标、名称、主题色，支持"添加到主屏幕"
@@ -439,14 +439,14 @@ templates/
 **新增目录**: `device-agent/`
 
 Device Agent 是 RPi 端的轻量服务，负责：
-- 启动时通过 outbound WebSocket 连接 `muliao.dev` 云端 Relay
+- 启动时通过 outbound WebSocket 连接 `muliao.io` 云端 Relay
 - 接收并执行来自 PWA 的配置指令（写入 openclaw.json、应用模板等）
 - 上报设备状态（CPU / 内存 / 存储 / 容器健康）
 - 管理配对码生成与验证
 
 **技术选型：**
 - 语言：Node.js（与 OpenClaw 生态一致）
-- 通信：WebSocket client → `wss://relay.muliao.dev`
+- 通信：WebSocket client → `wss://relay.muliao.io`
 - 容器化：独立 Dockerfile，纳入 Docker Compose
 
 **关键设计：**
@@ -496,7 +496,7 @@ Device Agent 是 RPi 端的轻量服务，负责：
      │               │               │  │
      └───────────────┼───────────────┘  │
                      ▼                   │
-          Step 4a: muliao.dev 云端 PWA  │
+          Step 4a: muliao.io 云端 PWA  │
           (依赖 Step 3 模板)             │
                      │                   │
           Step 4b: Device Agent          │
@@ -527,9 +527,9 @@ Device Agent 是 RPi 端的轻量服务，负责：
 | 场景模板 | PWA 向导选择 | PWA 可视化选择 |
 | 远程维护 | Tailscale SSH | Tailscale + PWA 远程协助开关 |
 | 系统更新 | SSH + docker pull | PWA 一键更新 / 自动更新 |
-| 状态监控 | muliao.dev 仪表盘 | muliao.dev 仪表盘 |
+| 状态监控 | muliao.io 仪表盘 | muliao.io 仪表盘 |
 | 备份恢复 | CLI backup.sh + PWA | PWA 操作 |
-| 多用户/团队 | ❌ 单用户 | ✅ muliao.dev 管理多团队 |
+| 多用户/团队 | ❌ 单用户 | ✅ muliao.io 管理多团队 |
 
 ---
 
@@ -547,7 +547,7 @@ Device Agent 是 RPi 端的轻量服务，负责：
 | `deploy/rpi/README.md` | RPi 部署文档 |
 | `deploy/rpi/wifi-setup/` | WiFi AP 配网服务（Captive Portal + hostapd 配置） |
 | `device-agent/` | RPi 端设备代理（WebSocket 连接云端、执行配置指令、上报状态） |
-| `muliao-cloud/`（独立仓库） | muliao.dev 云端服务：PWA 前端 + Relay 后端 + 用户账号 |
+| `muliao-cloud/`（独立仓库） | muliao.io 云端服务：PWA 前端 + Relay 后端 + 用户账号 |
 | `templates/sales-assistant/` | 丽姐场景模板 |
 | `templates/research-assistant/` | 文哲场景模板 |
 
@@ -590,7 +590,7 @@ Device Agent 是 RPi 端的轻量服务，负责：
 | LLM 策略 | 纯云端 API | 用户确认；RPi 做编排和转发，不做本地推理 |
 | 初期用户数 | 单用户专属 | 用户确认；后期扩展到团队 |
 | 容器编排 | Docker Compose（非 K8s） | RPi 单机场景用 K8s 过重，Compose 足够 |
-| 用户入口 | `muliao.dev` 云端 PWA（手机优先） | 正常网址易记、HTTPS 标配、不受 mDNS 兼容性限制、出门也能管理设备 |
+| 用户入口 | `muliao.io` 云端 PWA（手机优先） | 正常网址易记、HTTPS 标配、不受 mDNS 兼容性限制、出门也能管理设备 |
 | 设备通信 | 云端 Relay（WebSocket） | RPi 主动外连无需端口转发；参考 Nabu Casa / Plex 架构 |
 | 网络发现 | 配对码 + 云端自动匹配（Avahi mDNS 作为局域网 fallback） | 用户输入配对码即可，无需查找设备 IP |
 | 远程管理 | Tailscale | 穿透 NAT，无需公网 IP 或端口转发 |
@@ -608,7 +608,7 @@ Device Agent 是 RPi 端的轻量服务，负责：
 
 3. **离线降级**：断网时 Agent 完全不可用（纯云端 API）。是否需要设计一个"断网提示"机制（比如 OLED 屏显示网络状态、恢复后 Telegram 自动通知用户"我回来了"）？
 
-4. **muliao.dev 云端成本**：Relay 服务 + 静态托管 + 用户账号存储，初期免费 tier 方案？Cloudflare Pages (免费静态托管) + Fly.io (免费 tier 小实例) 能否支撑早期用户量？
+4. **muliao.io 云端成本**：Relay 服务 + 静态托管 + 用户账号存储，初期免费 tier 方案？Cloudflare Pages (免费静态托管) + Fly.io (免费 tier 小实例) 能否支撑早期用户量？
 
 5. **用户账号体系**：邮箱注册？手机号？微信扫码？需要考虑目标用户习惯。丽姐可能更习惯微信。Phase A 可以手动创建账号。
 
