@@ -2,7 +2,7 @@
 
 Muliao 是一个基于 OpenClaw 等多 Agent 框架的“AI 助手团队”项目，目标是让普通人也能拥有一支长期在线、可执行操作、可持续进化的个人/工作 AI 团队。
 OpenClaw 提供自托管网关、多渠道接入（WhatsApp、Telegram、Slack 等）、工具执行和多 Agent 协作能力，Muliao 在此基础上聚焦“对普通人真正友好”的产品化体验与方法论。 [docs.openclaw](https://docs.openclaw.ai/start/openclaw)
-
+> 商业模式与三层架构设计见 [business-model.md](business-model.md)。
 ***
 
 ## Muliao 的核心设计理念
