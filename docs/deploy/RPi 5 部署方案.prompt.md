@@ -76,10 +76,12 @@
 - 所有通信都是 RPi **主动外连**，无需端口转发、无需用户配置路由器
 - 参考：Home Assistant Cloud (Nabu Casa)、Plex Remote Access 均采用类似架构
 
-**为什么 PWA 而非原生 App：**
-- 免 App Store 审核，免维护 iOS/Android 两套代码
-- 设置 Telegram Bot 时，同一台手机上切换 Telegram ↔ 浏览器粘贴 Token，零跨设备摩擦
-- Service Worker Push Notification 可替代大部分原生推送需求
+**用户入口策略：PWA Web + Capacitor iOS/Android App（同一套前端代码，两个分发渠道）**
+
+- **Web 版（muliao.io）**：桌面浏览器访问、首次体验、无需装 App 的场景——任何设备都能用
+- **iOS/Android App（Capacitor Shell）**：App Store / Google Play 分发，原生 BLE 桥接解决 WiFi 配网，APNs Push 更可靠，Keychain 保护敏感数据——手机用户的首选
+- **前端代码唯一**：Vue/React 页面只写一遍，`npx cap sync` 同步到原生项目；Capacitor 插件通过 JS Bridge 暴露原生能力，Web 逻辑无需感知平台差异
+- 设置 Telegram Bot 时，同一台手机上切换 Telegram ↔ App 粘贴 Token，零跨设备摩擦
 - 桌面浏览器也能访问，不需要额外适配
 
 **PWA 承担的角色（覆盖全生命周期）：**
@@ -182,11 +184,29 @@ RPi 首次启动，检测到无网络连接
 - systemd 服务：开机检测网络 → 无网 → AP 模式 → WiFi 配好 → 正常模式
 - AP ↔ Station 模式切换由 `muliao-wifi-setup.service` 管理
 
-**备选：蓝牙配网（BLE Provisioning）**
-- RPi 5 有蓝牙，可以通过 BLE 发送 WiFi 凭据
-- 但 Web Bluetooth API 在 iOS Safari 不支持
-- 如果需要，做一个配套的**原生 iOS App**（仅做配网 + 蓝牙，功能极简）
-- 优先级低于 AP 模式，作为后备方案
+**备选：蓝牙配网（BLE Provisioning）+ iOS 原生 App = PWA Shell**
+
+与其只做一个极简配网工具，不如直接把 **muliao.io PWA 整体包进原生 iOS App**（Capacitor 方案）：
+
+- **核心思路**：App 内核是 WKWebView 加载 muliao.io，与 Web 版完全共享同一套前端代码；Capacitor 插件层为 Web 侧提供原生能力桥接
+- **BLE 问题就此根治**：Web Bluetooth API 在 iOS Safari 永久不可用，但 Capacitor 的 `@capacitor-community/bluetooth-le` 插件可通过 JS Bridge 调用原生 CoreBluetooth，配网流程在 App 内原生完成
+- **额外收益**：
+  - App Store 上架 → 用户主动搜索安装，无需手动"添加到主屏幕"
+  - 原生 Push Notification（APNs），比 PWA Service Worker 推送更可靠
+  - WKWebView 内可访问 Keychain 保护 API Key，不依赖 LocalStorage
+  - Xcode 打包一次，iPhone + iPad 通吃
+- **Android 同理**：Capacitor 同一套代码构建 APK；Web Bluetooth 在 Android Chrome 已原生支持，可作为增强而非必需
+- **Web 版继续保留**：桌面浏览器、不想装 App 的用户仍可直接访问 muliao.io——App 与 Web 是同一个产品的两个分发渠道，不是两套代码
+
+**实现拆分：**
+
+| 层次 | 内容 | 维护方式 |
+|------|------|----------|
+| 前端逻辑 | Vue/React + PWA 全部页面 | 统一在 muliao.io 仓库维护 |
+| 原生 Shell | Capacitor iOS 项目（`ios/`） | 只在发版时 `npx cap sync` + Xcode 打包 |
+| 原生插件 | BLE、APNs Push、Keychain、生物识别 | 按需引入 Capacitor 社区插件 |
+
+**优先级**：AP 模式（无 App）仍是 Phase B 的首选路径；iOS App = Phase B 增强选项，也是长期产品化的必经之路。
 
 ---
 
@@ -590,13 +610,13 @@ Device Agent 是 RPi 端的轻量服务，负责：
 | LLM 策略 | 纯云端 API | 用户确认；RPi 做编排和转发，不做本地推理 |
 | 初期用户数 | 单用户专属 | 用户确认；后期扩展到团队 |
 | 容器编排 | Docker Compose（非 K8s） | RPi 单机场景用 K8s 过重，Compose 足够 |
-| 用户入口 | `muliao.io` 云端 PWA（手机优先） | 正常网址易记、HTTPS 标配、不受 mDNS 兼容性限制、出门也能管理设备 |
+| 用户入口 | `muliao.io` 云端 PWA + Capacitor iOS/Android App（同一套前端代码） | Web 版全平台可用；App 版解决 iOS BLE 配网、APNs Push、App Store 分发；两者共享同一前端仓库 |
 | 设备通信 | 云端 Relay（WebSocket） | RPi 主动外连无需端口转发；参考 Nabu Casa / Plex 架构 |
 | 网络发现 | 配对码 + 云端自动匹配（Avahi mDNS 作为局域网 fallback） | 用户输入配对码即可，无需查找设备 IP |
 | 远程管理 | Tailscale | 穿透 NAT，无需公网 IP 或端口转发 |
 | 自动更新 | Watchtower（保守模式：通知但不自动更新） | 避免意外中断 |
 | 基础 OS | Ubuntu Server 24.04 LTS + cloud-init | 10 年 LTS、cloud-init 声明式配置、开发者友好、可移植到 cloud/CM5 |
-| 首次联网 | Phase A 网线；Phase B WiFi AP 模式（蓝牙备选） | 网线零配置最稳；AP 模式是智能硬件标准做法；蓝牙需 iOS App |
+| 首次联网 | Phase A 网线；Phase B WiFi AP 模式优先，iOS App（Capacitor + BLE）作增强 | 网线零配置最稳；AP 模式是智能硬件标准做法；iOS App = PWA Shell，BLE 配网通过 Capacitor 原生插件实现 |
 
 ---
 
