@@ -198,7 +198,8 @@ if ! docker inspect "${container}" &>/dev/null; then
         -e DISPLAY \
         -v /tmp/.X11-unix:/tmp/.X11-unix \
         \
-        `# 时区同步` \
+        `# 时区同步：TZ 环境变量让 Node.js 使用本地时区` \
+        -e TZ="$(cat /etc/timezone 2>/dev/null || echo UTC)" \
         -v /etc/timezone:/etc/timezone:ro \
         -v /etc/localtime:/etc/localtime:ro \
         \
