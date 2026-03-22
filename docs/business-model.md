@@ -1,6 +1,6 @@
 # Muliao 商业模式
 
-> 相关文档：[overview.md](overview.md)（技术设计）、[target-customers.md](target-customers.md)（用户画像）
+> 相关文档：[design.md](design.md)（技术设计）、[target-customers.md](target-customers.md)（用户画像）
 
 ---
 
@@ -175,4 +175,4 @@
 | **→ Scale** | 模板库扩充 + Skills 生态 | Cloud + Marketplace | 文哲 / 小雅扩展 |
 | **→ Ecosystem** | 事实标准 | 认证 + Enterprise | 多垂直场景矩阵 |
 
-> 与 [overview.md](overview.md) 技术路线对齐：Phase 1–2 → 3 → 4 → 5
+> 与 [design.md](design.md) 技术路线对齐：Phase 1–2 → 3 → 4 → 5

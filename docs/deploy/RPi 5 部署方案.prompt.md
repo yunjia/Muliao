@@ -578,7 +578,7 @@ Device Agent 是 RPi 端的轻量服务，负责：
 | `docker/run.sh` | 改为 Compose wrapper，向后兼容 |
 | `docker/build.sh` | 增加 ARM64 单独构建快捷方式 |
 | `readme.md` | 增加 RPi 部署说明 |
-| `docs/overview.md` | 更新 Roadmap 反映硬件部署方向 |
+| `docs/design.md` | 更新 Roadmap 反映硬件部署方向 |
 
 ---
 

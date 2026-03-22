@@ -4,7 +4,7 @@
 
 灵感来自 OpenClaw 在社区掀起的热潮——这里记录配置方案、Skill 实验和自动化计划，为"让 AI 助手真正走入日常生活"积累可复用的经验。
 
-> 项目背景与设计理念：见 [docs/overview.md](../docs/overview.md)；用户向 README：见 [readme.md](../readme.md)。
+> 项目背景与设计理念：见 [docs/design.md](../docs/design.md)；用户向 README：见 [readme.md](../readme.md)。
 
 ---
 
@@ -23,7 +23,7 @@ docker/
   build.sh                  # 构建脚本
   run.sh                    # 启动脚本（--team NAME 选择团队）
 docs/
-  overview.md               # 项目设计理念、能力要点、推进路线（详细版）
+  design.md                 # 项目设计理念、能力要点、推进路线（详细版）
 teams/                      # ← .gitignore，不纳入版本管理
   <team-name>/
     config/                 # 运行时状态（credentials、sessions、logs）
@@ -75,7 +75,7 @@ readme.md                   # 项目简介（面向用户）
 ## AI Agent 行为准则
 
 - **语言**：默认用**中文**回复；文件名、type/scope、代码、命令保持英文
-- **链接而非嵌入**：回答中引用设计细节时，优先指向 `docs/overview.md` 或 `readme.md`，不要将长段内容复制到对话里
+- **链接而非嵌入**：回答中引用设计细节时，优先指向 `docs/design.md` 或 `readme.md`，不要将长段内容复制到对话里
 - **只改被问到的内容**：这是研究/文档仓库，不要在未被要求时重构文档结构或添加额外章节
 - **Skill 优先**：推荐 OpenClaw Skill 时，先查 ClawHub（下载量 + 星标），再考虑自定义
 - **最小权限意识**：规划涉及邮件/日历/文件系统访问的方案时，明确提示需要哪些权限
