@@ -1,5 +1,7 @@
 # Plan: RPi 5 部署方案 — Muliao 极简 AI 助手设备
 
+> **定位说明**：本文档专注于**硬件与基础设施层**——RPi 5 设备形态、Docker 编排、OS 镜像、网络配置、云端 Relay 架构。Muliao 的应用层能力（赫耳墨斯 HR 流程、团队管理、自然成长机制等）属于独立的设计范畴，见 [docs/design.md](../design.md)。两层之间的关系：本文档解决"设备怎么跑起来"，design.md 解决"Agent 怎么工作"。
+
 ## TL;DR
 
 将 Muliao 打包为**预装好的 RPi 5 成品设备**，用户拿到手后插电联网即可使用。底层仍是 Docker，用户通过 **`muliao.io` 云端 PWA** 完成设备初始化和日常管理——手机浏览器访问 `muliao.io`，PWA 通过云端中继与局域网内的 RPi 设备通信，将所有 IT 概念对用户完全隐藏。分两个大阶段推进：**Phase A（团队辅助部署）** → **Phase B（DIY 开箱即用）**。
@@ -371,6 +373,8 @@ write_files:
 
 ### Step 3: 场景模板系统
 *前置：无依赖，可与 Step 1/2 并行*
+
+> **注**：本节只定义模板的**文件结构和部署位置**，属于基础设施范畴。各文件的具体内容（人格设定、Skill 组合、HR 流程等）由应用层决定，见 [docs/design.md](../design.md)。
 
 当前 `teams/default/workspace/` 是通用模板。需要为丽姐和文哲创建专属场景模板。
 
