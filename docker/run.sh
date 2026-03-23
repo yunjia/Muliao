@@ -147,4 +147,4 @@ fi
 
 echo ""
 echo "Gateway 已启动。进入容器 bash："
-echo "  docker compose -f ${REPO_ROOT}/docker-compose.yml exec openclaw bash"
+echo "  docker compose exec openclaw bash"
