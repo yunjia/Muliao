@@ -135,8 +135,15 @@ if [[ "$restart" -eq 1 ]]; then
     "${compose_cmd[@]}" down --remove-orphans 2>/dev/null || true
 fi
 
-# 启动 openclaw 服务（已运行则无操作）
-"${compose_cmd[@]}" up -d openclaw
+# 启动 openclaw 服务
+# - --build：本地已构建新镜像，强制重建容器（不从 registry 拉，避免覆盖本地 build）
+# - 默认：先从 registry 拉最新镜像（buildx --push 后本地不会自动更新，必须显式 pull）
+if [[ "$build" -eq 1 ]]; then
+    "${compose_cmd[@]}" up -d --force-recreate openclaw
+else
+    "${compose_cmd[@]}" pull openclaw
+    "${compose_cmd[@]}" up -d --force-recreate openclaw
+fi
 
 echo ""
 echo "Gateway 已启动。进入容器 bash："
