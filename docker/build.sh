@@ -13,7 +13,7 @@
 #
 # Options:
 #   --node VERSION    Node 主版本号（22|24，默认：24）
-#   --tag TAG         完整镜像 tag（默认：ghcr.io/teabots/muliao:latest）
+#   --tag TAG         完整镜像 tag（默认：ghcr.io/muliaoio/muliao:latest）
 #   --push            构建后推送到 registry
 #   --platform PLAT   目标平台（默认：linux/amd64,linux/arm64）
 #   --no-cache        构建时不使用缓存
@@ -23,7 +23,7 @@
 #   build.sh                                    # 本地构建 node24 镜像
 #   build.sh --node 22                          # 构建 node22 变体
 #   build.sh --push                             # 构建并推送
-#   build.sh --tag ghcr.io/teabots/muliao:dev  # 自定义 tag
+#   build.sh --tag ghcr.io/muliaoio/muliao:dev  # 自定义 tag
 #   build.sh --push --platform linux/amd64      # 仅 amd64，推送
 # ==============================================================================
 
@@ -82,7 +82,7 @@ done
 # Resolve tag
 # --------------------------------------------------------------------------- #
 if [[ -z "$tag" ]]; then
-    tag="ghcr.io/teabots/muliao:latest"
+    tag="ghcr.io/muliaoio/muliao:latest"
 fi
 
 echo "Image:    ${tag}"

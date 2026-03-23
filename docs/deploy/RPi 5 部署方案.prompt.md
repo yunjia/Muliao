@@ -354,7 +354,7 @@ packages:
 
 runcmd:
   # 预拉取 Docker 镜像
-  - docker pull ghcr.io/teabots/muliao:latest
+  - docker pull ghcr.io/muliaoio/muliao:latest
   - docker pull containrrr/watchtower
   # 启用 Muliao 服务
   - systemctl enable --now muliao.service
@@ -484,7 +484,7 @@ Device Agent 是 RPi 端的轻量服务，负责：
 
 **方案：Watchtower + 版本标签**
 
-- Watchtower 容器定期检查 `ghcr.io/teabots/muliao:latest` 是否有新镜像
+- Watchtower 容器定期检查 `ghcr.io/muliaoio/muliao:latest` 是否有新镜像
 - 发现更新 → 拉取新镜像 → 优雅重启 OpenClaw 容器
 - 通过 Telegram 通知用户："系统已自动更新到 v2026.4.1 ✅"
 

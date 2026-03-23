@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==============================================================================
-# backup.sh — Team Workspace 备份与还原工具
+# backup.sh — Team 数据备份与还原工具
 # ==============================================================================
 #
 # Usage:
@@ -8,8 +8,8 @@
 #   backup.sh --help
 #
 # Commands:
-#   backup              备份指定 team 的 workspace 为 zip 文件
-#   restore <file>      从 zip 文件还原 workspace
+#   backup              备份指定 team 的数据目录为 zip 文件
+#   restore <file>      从 zip 文件还原 team 数据
 #   list                列出已有备份
 #
 # Options:
@@ -18,7 +18,7 @@
 #   -h, --help          显示帮助
 #
 # Description:
-#   将 teams/<name>/workspace/ 完整打包为 zip（含 .git/、.openclaw/ 等隐藏目录），
+#   将 teams/<name>/ 完整打包为 zip（含 config、workspace、sessions 等），
 #   备份文件存放在 teams/.backups/ 目录下。
 #   文件名格式：<team>-<YYYY-MM-DD-HHMMSS>.zip
 #
@@ -131,8 +131,8 @@ parse_args() {
 do_backup() {
     check_deps zip
 
-    local workspace="${REPO_ROOT}/teams/${TEAM}/workspace"
-    [[ -d "$workspace" ]] || die "workspace 不存在: $workspace"
+    local team_dir="${REPO_ROOT}/teams/${TEAM}"
+    [[ -d "$team_dir" ]] || die "team 目录不存在: $team_dir"
 
     mkdir -p "$BACKUP_DIR"
 
@@ -141,10 +141,10 @@ do_backup() {
     local filename="${TEAM}-${timestamp}.zip"
     local dest="${BACKUP_DIR}/${filename}"
 
-    info "正在备份 teams/${TEAM}/workspace/ ..."
+    info "正在备份 teams/${TEAM}/ ..."
 
-    # cd into workspace so zip stores relative paths
-    (cd "$workspace" && zip -r -q "$dest" .)
+    # cd into team dir so zip stores relative paths
+    (cd "$team_dir" && zip -r -q "$dest" .)
 
     local size
     size="$(du -h "$dest" | cut -f1)"
@@ -169,14 +169,13 @@ do_restore() {
         fi
     fi
 
-    local workspace="${REPO_ROOT}/teams/${TEAM}/workspace"
     local team_dir="${REPO_ROOT}/teams/${TEAM}"
 
-    [[ -d "$team_dir" ]] || die "team 目录不存在: $team_dir"
+    [[ -d "$team_dir" ]] || mkdir -p "$team_dir"
 
-    # Confirm overwrite if workspace exists and --force not set
-    if [[ -d "$workspace" && "$FORCE" -eq 0 ]]; then
-        echo "⚠️  workspace 已存在: teams/${TEAM}/workspace/"
+    # Confirm overwrite if team dir is not empty and --force not set
+    if [[ "$(ls -A "$team_dir" 2>/dev/null)" && "$FORCE" -eq 0 ]]; then
+        echo "⚠️  team 目录已存在: teams/${TEAM}/"
         read -r -p "   确认覆盖？所有现有内容将被清除 [y/N] " answer
         case "$answer" in
             [yY]|[yY][eE][sS]) ;;
@@ -184,15 +183,15 @@ do_restore() {
         esac
     fi
 
-    info "正在还原到 teams/${TEAM}/workspace/ ..."
+    info "正在还原到 teams/${TEAM}/ ..."
 
     # Clean and recreate
-    rm -rf "$workspace"
-    mkdir -p "$workspace"
+    rm -rf "$team_dir"
+    mkdir -p "$team_dir"
 
-    unzip -q -o "$zip_path" -d "$workspace"
+    unzip -q -o "$zip_path" -d "$team_dir"
 
-    ok "还原完成: teams/${TEAM}/workspace/（来源: $(basename "$zip_path")）"
+    ok "还原完成: teams/${TEAM}/（来源: $(basename "$zip_path")）"
 }
 
 # --------------------------------------------------------------------------- #

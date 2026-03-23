@@ -1,0 +1,94 @@
+# ==============================================================================
+# docker-compose.yml — Muliao 容器编排
+# ==============================================================================
+#
+# host 网络模式（直接使用宿主机网络栈，无需端口映射）。
+#
+# 通常不直接调用 compose，而是通过 run.sh wrapper：
+#   docker/run.sh                  # 启动容器（gateway 自动运行）
+#   docker compose exec openclaw bash  # 进入容器 bash
+#
+# Volume 路径通过环境变量配置：
+#   MULIAO_DATA_DIR — OpenClaw 运行时数据目录（配置 + workspace + sessions）
+#   开发机：run.sh 自动设为 teams/<name>/
+#   RPi：在 .env 或 systemd 中设为绝对路径（如 /opt/muliao/data）
+# ==============================================================================
+
+services:
+  # --------------------------------------------------------------------------
+  # openclaw — 主 Agent 容器
+  # --------------------------------------------------------------------------
+  openclaw:
+    image: ${MULIAO_IMAGE:-ghcr.io/muliaoio/muliao:latest}
+    container_name: ${MULIAO_CONTAINER_NAME:-muliao}
+    labels:
+      com.muliao.watch: "true"
+
+    network_mode: host
+
+    command: ["openclaw", "gateway"]
+
+    environment:
+      HOME: /home/muliao
+      TZ: ${TZ:-}
+      # AI API keys
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      # IM Bot tokens
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
+      SLACK_APP_TOKEN: ${SLACK_APP_TOKEN:-}
+      # Gateway
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
+
+    volumes:
+      # OpenClaw 运行时数据（credentials、sessions、config、workspace）
+      - ${MULIAO_DATA_DIR:-./.muliao/data}:/home/muliao/.openclaw
+      # SSH keys（只读）
+      - ~/.ssh:/home/muliao/.ssh:ro
+      # 时区同步
+      - /etc/localtime:/etc/localtime:ro
+
+    # Chromium sandbox（容器内 headless 浏览器）
+    cap_add:
+      - SYS_ADMIN
+    shm_size: 2g
+
+    restart: unless-stopped
+
+  # --------------------------------------------------------------------------
+  # watchtower — 镜像更新监控（保守模式：只通知不自动更新）
+  # --------------------------------------------------------------------------
+  watchtower:
+    image: containrrr/watchtower
+    container_name: muliao-watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      # 只监控不自动更新（保守策略）
+      - WATCHTOWER_MONITOR_ONLY=true
+      # 每天凌晨 4 点检查
+      - WATCHTOWER_SCHEDULE=0 0 4 * * *
+      # 只监控带 com.muliao.watch=true label 的容器
+      - WATCHTOWER_LABEL_ENABLE=true
+    restart: unless-stopped
+    profiles:
+      - monitor
+
+  # --------------------------------------------------------------------------
+  # device-agent — 设备代理（占位，Step 4b 实现）
+  # --------------------------------------------------------------------------
+  # device-agent:
+  #   image: ghcr.io/muliaoio/muliao-device-agent:latest
+  #   container_name: muliao-device-agent
+  #   environment:
+  #     - RELAY_URL=wss://relay.muliao.io
+  #   volumes:
+  #     - ${MULIAO_DATA_DIR:-./.muliao/data}:/config:ro
+  #   depends_on:
+  #     - openclaw
+  #   restart: unless-stopped
+  #   profiles:
+  #     - rpi

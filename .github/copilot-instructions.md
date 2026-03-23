@@ -22,8 +22,9 @@ cli/
 docker/
   Dockerfile                  # 运行镜像（node:24 + OpenClaw + 中文字体 + 浏览器依赖）
   build.sh                    # 构建脚本（支持多平台 buildx）
-  run.sh                      # 启动脚本（--team, --gateway, --no-browser 等）
-  entrypoint.sh               # UID/GID 动态映射（PUID/PGID）
+  run.sh                      # 启动脚本（--team, --restart 等）
+docker-compose.yml            # 容器编排（host 网络模式）
+.env.example                  # 环境变量模板（复制为 .env）
 docs/
   design.md                   # 技术设计：8 维差异化、优先级、路线图
   business-model.md           # 三层商业模式：开源中间件 → 自给 → 垂直 SaaS
@@ -55,17 +56,13 @@ teams/                        # ← .gitignore，不纳入版本管理（OpenCla
 # 指定 Node 版本
 ./docker/build.sh --node 22
 
-# 启动交互 bash
+# 启动容器（gateway 自动运行）
 ./docker/run.sh
-# 启动 OpenClaw Gateway
-./docker/run.sh --gateway
 # 指定团队
 ./docker/run.sh --team hermes
-# 轻量模式（无浏览器）
-./docker/run.sh --no-browser
 ```
 
-关键环境变量：`PUID` / `PGID`（UID/GID 映射，默认 1000）。
+
 
 ### 备份/恢复
 
