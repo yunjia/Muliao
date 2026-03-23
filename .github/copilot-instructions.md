@@ -12,27 +12,92 @@
 
 ```
 .github/
-  copilot-instructions.md   # 本文件：AI agent 工作指引
+  copilot-instructions.md     # 本文件：AI agent 工作指引
   prompts/
-    commit.prompt.md        # /commit — 生成中文 Conventional Commit message
-    fix-md.prompt.md        # /fix-md — 修复 Markdown 格式 warning/error
-    plan/
-      个人研究助手.prompt.md  # /个人研究助手 — arXiv 论文搜索助手规划方案
+    commit.prompt.md          # /commit — 生成中文 Conventional Commit message
+    fix-md.prompt.md          # /fix-md — 修复 Markdown 格式 warning/error
+    plan/                     # 规划类 prompt
+cli/
+  backup.sh                   # 团队 workspace 备份/恢复工具
 docker/
-  Dockerfile                # 运行镜像定义
-  build.sh                  # 构建脚本
-  run.sh                    # 启动脚本（--team NAME 选择团队）
+  Dockerfile                  # 运行镜像（node:24 + OpenClaw + 中文字体 + 浏览器依赖）
+  build.sh                    # 构建脚本（支持多平台 buildx）
+  run.sh                      # 启动脚本（--team, --gateway, --no-browser 等）
+  entrypoint.sh               # UID/GID 动态映射（PUID/PGID）
 docs/
-  design.md                 # 项目设计理念、能力要点、推进路线（详细版）
-teams/                      # ← .gitignore，不纳入版本管理
-  <team-name>/
-    config/                 # 运行时状态（credentials、sessions、logs）
-    workspace/              # 团队的 git repo（SOUL.md、IDENTITY.md、memory/ 等）
-readme.md                   # 项目简介（面向用户）
+  design.md                   # 技术设计：8 维差异化、优先级、路线图
+  business-model.md           # 三层商业模式：开源中间件 → 自给 → 垂直 SaaS
+  target-customers.md         # 四类用户画像与场景映射
+  design/
+    natural-growth.md         # HR 驱动的团队级进化机制
+  deploy/
+    RPi 5 部署方案.prompt.md  # 树莓派硬件方案 + PWA Relay 架构
+  scenarios/
+    research-assistant/       # 论文追踪助手分阶段实施方案
+readme.md                     # 项目简介（面向用户）
+teams/                        # ← .gitignore，不纳入版本管理（OpenClaw 运行时数据）
 ```
 
 > Muliao 是脚手架项目：提供 Docker 脚本和文档，团队数据（`teams/`）整体 gitignore。
 > 每个团队的 `workspace/` 是独立的 git repo，可推到各自的 remote。
+
+---
+
+## 构建与运行
+
+### Docker
+
+```bash
+# 构建镜像（当前平台）
+./docker/build.sh
+# 多平台构建并推送
+./docker/build.sh --push
+# 指定 Node 版本
+./docker/build.sh --node 22
+
+# 启动交互 bash
+./docker/run.sh
+# 启动 OpenClaw Gateway
+./docker/run.sh --gateway
+# 指定团队
+./docker/run.sh --team hermes
+# 轻量模式（无浏览器）
+./docker/run.sh --no-browser
+```
+
+关键环境变量：`PUID` / `PGID`（UID/GID 映射，默认 1000）。
+
+### 备份/恢复
+
+```bash
+cli/backup.sh backup [--team NAME]        # 备份 workspace → teams/.backups/
+cli/backup.sh restore <file> [--team NAME] # 从 zip 恢复
+cli/backup.sh list [--team NAME]          # 列出可用备份
+```
+
+---
+
+## 文档索引
+
+> 回答时引用设计细节请**链接到对应文档**，不要将长段内容复制到对话里。
+
+| 文档 | 主题 |
+|------|------|
+| [readme.md](../readme.md) | 项目愿景、核心理念、能力概览 |
+| [docs/design.md](../docs/design.md) | 技术架构、与 OpenClaw 的差异化定位、开发优先级 |
+| [docs/business-model.md](../docs/business-model.md) | 三层商业模式、MVP 验证策略 |
+| [docs/target-customers.md](../docs/target-customers.md) | 四类用户画像（丽姐/文哲/小雅/老陈） |
+| [docs/design/natural-growth.md](../docs/design/natural-growth.md) | 团队自然成长机制（观察反馈、经验迁移、审批变更） |
+| [docs/deploy/RPi 5 部署方案.prompt.md](../docs/deploy/RPi%205%20部署方案.prompt.md) | 树莓派消费级硬件方案、WebSocket Relay |
+
+---
+
+## 技术要点
+
+- **无 package.json**：项目根目录没有 Node 项目文件，依赖在 Docker 容器内通过 `npm install -g openclaw@latest` 管理
+- **无 CI/CD**：当前手动构建/部署，使用 Docker 脚本
+- **Dev Container**：`.devcontainer.json` 存在，`remoteUser: "node"`
+- **teams/ 是运行时数据**：包含 credentials、sessions、logs，整体 gitignore，不要修改或依赖其内容
 
 ---
 
