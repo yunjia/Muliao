@@ -55,6 +55,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.."; pwd)"
 die()  { echo "❌ $*" >&2; exit 1; }
 info() { echo "ℹ️  $*"; }
 ok()   { echo "✅ $*"; }
+warn() { echo "⚠️  $*"; }
 
 show_help() {
     sed -n '/^# Usage:/,/^# ====/{/^# ====/d; p}' "$0" | sed 's/^# \{0,1\}//'
@@ -245,6 +246,9 @@ if [[ -n "$env_file" ]]; then
         "$tmpenv" \
         "${ssh_target}:${REMOTE_BASE}/.env"
     rm -f "$tmpenv"
+
+    # 确保文件属主正确（rsync 有时会保留临时文件属主）
+    ssh "$ssh_target" "sudo chown ${ssh_user}:${ssh_user} ${REMOTE_BASE}/.env && sudo chmod 600 ${REMOTE_BASE}/.env"
 
     ok ".env 同步完成"
 else

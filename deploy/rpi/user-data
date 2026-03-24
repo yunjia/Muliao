@@ -49,6 +49,7 @@ packages:
   - rsync
   - console-setup         # 控制台字体配置
   - xfonts-terminus       # Terminus 像素字体（终端清晰锐利）
+  - network-manager       # nmcli WiFi 管理工具
 
 # --------------------------------------------------------------------------- #
 # 文件写入
@@ -129,8 +130,13 @@ runcmd:
   - mkdir -p /home/muliao/.openclaw
 
   # ── 预拉取 Docker 镜像（首次启动需要时间，提前拉好） ──
-  - docker pull ghcr.io/muliaoio/muliao:latest
-  - docker pull containrrr/watchtower
+  - |
+    GHCR_TOKEN="__GHCR_TOKEN__"
+    if [ -n "$GHCR_TOKEN" ] && [ "$GHCR_TOKEN" != "__GHCR_TOKEN__" ]; then
+      echo "$GHCR_TOKEN" | docker login ghcr.io -u x-access-token --password-stdin
+    fi
+  - docker pull ghcr.io/muliaoio/muliao:latest || true
+  - docker pull containrrr/watchtower || true
 
   # ── 启用 muliao.service（不立即启动，等 deploy-team.sh 部署数据后启动） ──
   - systemctl enable muliao.service

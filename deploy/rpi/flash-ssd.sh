@@ -109,6 +109,8 @@ local_image=""
 skip_flash=0
 boot_dir=""    # WSL2 模式：直接指定已挂载的 boot 分区
 cli_tailscale_key=""  # 命令行显式指定的 key（最高优先级）
+ghcr_token=""         # GitHub Token，用于拉取 ghcr.io 私有镜像
+cli_ghcr_token=""    # 命令行显式指定（最高优先级）
 
 # --------------------------------------------------------------------------- #
 # Argument parsing
@@ -130,6 +132,8 @@ while [[ $# -gt 0 ]]; do
         team_name="$2"; shift 2 ;;
     --tailscale-key)
         cli_tailscale_key="$2"; shift 2 ;;
+    --ghcr-token)
+        cli_ghcr_token="$2"; shift 2 ;;
     --resolution)
         resolution="$2"; shift 2 ;;
     --ssh-key)
@@ -175,7 +179,16 @@ _ts=$(_read_env_key "$team_env" TAILSCALE_AUTHKEY || true)
 # 命令行参数最高优先级
 [[ -n "$cli_tailscale_key" ]] && tailscale_key="$cli_tailscale_key"
 
-unset _ts
+# GHCR Token（用于拉取 ghcr.io 私有镜像）
+_gt=$(_read_env_key "$root_env" GHCR_TOKEN || true)
+[[ -n "${_gt:-}" ]] && ghcr_token="$_gt"
+
+_gt=$(_read_env_key "$team_env" GHCR_TOKEN || true)
+[[ -n "${_gt:-}" ]] && ghcr_token="$_gt"
+
+[[ -n "$cli_ghcr_token" ]] && ghcr_token="$cli_ghcr_token"
+
+unset _ts _gt
 
 # hostname prefix 默认跟随 team name
 [[ -z "$hostname_prefix" ]] && hostname_prefix="$team_name"
@@ -253,6 +266,7 @@ _box "团队:         $team_name"
 _box "主机名前缀:   ${hostname_prefix}-<xxxx>"
 _box "时区:         $timezone"
 _box "Tailscale:    ${tailscale_key:+已配置}"
+_box "GHCR Token:   ${ghcr_token:+已配置}"
 _box "分辨率:       ${resolution:-自动检测}"
 if [[ -n "$ssh_pubkey" ]]; then
     _box "SSH 公钥:     $ssh_key_path"
@@ -349,6 +363,7 @@ sed \
     -e "s|__TIMEZONE__|${timezone}|g" \
     -e "s|__TAILSCALE_AUTHKEY__|${tailscale_key}|g" \
     -e "s|__SSH_PUBKEY__|${ssh_pubkey}|g" \
+    -e "s|__GHCR_TOKEN__|${ghcr_token}|g" \
     "$user_data_template" | tr -d '\r' > "${mount_point}/user-data"
 
 # 如果没有提供 SSH key，删除空的 ssh_authorized_keys 条目

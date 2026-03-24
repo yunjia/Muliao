@@ -286,3 +286,52 @@ ssh muliao@100.x.x.y
 | `tailscale status` 看不到 RPi | 确认 RPi 和 WSL2 登录的是**同一个 Tailscale 账号** |
 | WSL2 网络不通 | 尝试加 `--tun=userspace-networking` 参数启动 tailscaled |
 | `ssh muliao@xxx.local` 失败 (exit 255) | WSL2 的 mDNS 支持有限，改用 Tailscale 主机名连接 |
+
+---
+
+## 十、RPi 连接 WiFi（nmcli）
+
+RPi 初次部署通常用有线网。若需切换到 WiFi（如没有网线的场景），用 `nmcli` 操作。
+
+> `network-manager` 已加入 `user-data` 包列表，新烧录的 RPi 开箱即用。
+> 旧设备手动安装：`sudo apt install network-manager`
+
+### 扫描可用 WiFi
+
+```bash
+nmcli device wifi list
+```
+
+### 连接 WiFi
+
+```bash
+sudo nmcli device wifi connect "WiFi名称" password "WiFi密码"
+```
+
+### 确认连接
+
+```bash
+nmcli connection show --active
+ip addr show wlan0
+```
+
+### 常用命令速查
+
+```bash
+# 查看所有接口状态
+nmcli device status
+
+# 断开 WiFi
+sudo nmcli device disconnect wlan0
+
+# 查看已保存的连接
+nmcli connection show
+
+# 删除已保存的连接（重新配置）
+sudo nmcli connection delete "WiFi名称"
+```
+
+### 切换有线 → WiFi 注意事项
+
+连上 WiFi 后可以拔掉网线，Tailscale 会自动切换到 WiFi 接口，**SSH 不会断**。
+如果 RPi 同时接有线和 WiFi，两个接口都会保持，无需额外配置。
