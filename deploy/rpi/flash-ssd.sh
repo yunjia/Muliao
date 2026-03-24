@@ -186,7 +186,7 @@ _hp=$(_read_env_key "$team_env" HOSTNAME_PREFIX || true)
 # 最终 fallback：用 team_name 作为主机名前缀
 [[ -z "$hostname_prefix" ]] && hostname_prefix="$team_name"
 
-# TIMEZONE（云初始化时区；仅影响 RPi 系统时区，不影响 Docker 容器的 TZ）
+# TIMEZONE（云初始化时区）
 # 回退优先级：TIMEZONE > TZ
 _tz=$(_read_env_key "$team_env" TIMEZONE || true)
 [[ -z "${_tz:-}" ]] && _tz=$(_read_env_key "$team_env" TZ || true)
@@ -360,16 +360,18 @@ fi
 
 info "注入 cloud-init user-data..."
 
-# 从模板生成 user-data，替换占位符
-user_data_template="${SCRIPT_DIR}/user-data"
-[[ -f "$user_data_template" ]] || die "未找到 user-data 模板: $user_data_template"
-
-sed \
-    -e "s|__HOSTNAME__|${hostname_prefix}|g" \
-    -e "s|__TIMEZONE__|${timezone}|g" \
-    -e "s|__TAILSCALE_AUTHKEY__|${tailscale_key}|g" \
-    -e "s|__SSH_PUBKEY__|${ssh_pubkey}|g" \
-    "$user_data_template" | tr -d '\r' > "${mount_point}/user-data"
+# 使用 render.sh 合并 base + rpi-overlay，替换占位符
+CLOUD_INIT_DIR="${REPO_ROOT}/deploy/cloud-init"
+render_cmd=("${CLOUD_INIT_DIR}/render.sh"
+    --base "${CLOUD_INIT_DIR}/base-user-data.yaml"
+    --overlay "${CLOUD_INIT_DIR}/rpi-overlay.yaml"
+    --var "HOSTNAME=${hostname_prefix}"
+    --var "TIMEZONE=${timezone}"
+    --var "TAILSCALE_AUTHKEY=${tailscale_key}"
+    --var "SSH_PUBKEY=${ssh_pubkey}"
+    -o "${mount_point}/user-data"
+)
+"${render_cmd[@]}"
 
 # 如果没有提供 SSH key，删除空的 ssh_authorized_keys 条目
 if [[ -z "$ssh_pubkey" ]]; then

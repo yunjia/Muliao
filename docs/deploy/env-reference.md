@@ -9,10 +9,10 @@
 ```bash
 cp .env.example teams/hermes/.env
 vim teams/hermes/.env              # 填入 API keys 等
-docker/run.sh --team hermes        # 启动
+./cli/dev.sh launch --team hermes  # 启动开发 VM
 ```
 
-`run.sh --team <name>` 首次运行时会自动从 `.env.example` 复制。
+`dev.sh launch --team <name>` 首次运行时会自动从 `.env.example` 复制。
 
 | 文件 | 说明 |
 |------|------|
@@ -23,16 +23,11 @@ docker/run.sh --team hermes        # 启动
 
 ## 变量说明
 
-### Docker 容器
-
-仅开发机 Docker 工作流使用，RPi 裸机部署不涉及。
+### 系统
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `MULIAO_IMAGE` | `ghcr.io/muliaoio/muliao:latest` | Docker 镜像地址（`run.sh --image` 可临时覆盖）|
-| `TZ` | 宿主机时区 | 容器时区 |
-
-> `MULIAO_DATA_DIR` 和容器名由 `run.sh` 根据 `--team` 自动推导，无需手动设置。
+| `TZ` | 宿主机时区 | 系统时区 |
 
 ### AI API Keys
 
@@ -89,7 +84,7 @@ cp .env.example teams/hermes/.env
 vim teams/hermes/.env
 
 # 3. 本地测试
-docker/run.sh --team hermes
+cli/dev.sh launch --team hermes
 
 # 4. 烧录 RPi（所有配置从 .env 读取）
 sudo flash-ssd.sh /dev/sda --team hermes

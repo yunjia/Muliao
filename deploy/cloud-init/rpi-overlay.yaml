@@ -1,0 +1,96 @@
+# ==============================================================================
+# Muliao — cloud-init RPi overlay
+# ==============================================================================
+#
+# RPi 5 特有配置：mDNS、终端字体、WiFi 管理、Tailscale、序列号主机名。
+# 由 render.sh 合并到 base-user-data.yaml 之上，生成完整的 RPi user-data。
+#
+# 额外占位符（render.sh 替换）：
+#   __TAILSCALE_AUTHKEY__   Tailscale pre-auth key
+#   __SSH_PUBKEY__          SSH 公钥（可选）
+# ==============================================================================
+
+# ── 追加到 users[0] ──
+users_merge:
+  ssh_authorized_keys:
+    - __SSH_PUBKEY__
+
+# ── 追加到 packages ──
+packages:
+  - avahi-daemon          # 局域网 mDNS fallback（muliao.local）
+  - console-setup         # 控制台字体配置
+  - xfonts-terminus       # Terminus 像素字体（终端清晰锐利）
+  - network-manager       # nmcli WiFi 管理工具
+
+# ── 追加到 write_files ──
+write_files:
+  - path: /home/muliao/.deploy-pending
+    permissions: "0644"
+    content: |
+      # 此文件表示 deploy-team.sh 尚未执行。
+      # OpenClaw gateway 不会启动，直到团队数据部署完成。
+      # 运行 deploy-team.sh 后此文件会被删除。
+
+# ── 前置到 runcmd（在 base runcmd 之前执行） ──
+runcmd_prepend:
+  # ── 生成唯一主机名（前缀 + RPi 序列号后 4 位）──
+  - |
+    PREFIX="__HOSTNAME__"
+    # 方法 1: device-tree（标准路径）
+    SERIAL=$(cat /sys/firmware/devicetree/base/serial-number 2>/dev/null | tr -d '\0')
+    # 方法 2: /proc/cpuinfo fallback（RPi 5 BCM2712 等）
+    if [ -z "$SERIAL" ]; then
+      SERIAL=$(grep -i '^Serial' /proc/cpuinfo 2>/dev/null | awk '{print $3}')
+    fi
+    if [ -n "$SERIAL" ]; then
+      SUFFIX=$(echo "$SERIAL" | tail -c 5 | tr '[:upper:]' '[:lower:]')
+      FINAL_HOSTNAME="${PREFIX}-${SUFFIX}"
+    else
+      FINAL_HOSTNAME="$PREFIX"
+    fi
+    hostnamectl set-hostname "$FINAL_HOSTNAME"
+    echo "$FINAL_HOSTNAME" > /etc/hostname
+    sed -i "s/127.0.1.1.*/127.0.1.1\t$FINAL_HOSTNAME/" /etc/hosts
+    # 防止 cloud-init 在重启后覆盖 runcmd 设置的主机名
+    echo "preserve_hostname: true" > /etc/cloud/cloud.cfg.d/99-preserve-hostname.cfg
+    # 保存供后续步骤使用
+    echo "$FINAL_HOSTNAME" > /tmp/.muliao-hostname
+
+# ── 追加到 runcmd（在 base runcmd 之后执行） ──
+runcmd:
+  # ── Tailscale ──
+  - curl -fsSL https://tailscale.com/install.sh | sh
+  # 如果提供了 auth key 则自动加入 tailnet（启用 Tailscale SSH）
+  - |
+    TSKEY="__TAILSCALE_AUTHKEY__"
+    FINAL_HOSTNAME=$(cat /tmp/.muliao-hostname 2>/dev/null || echo "__HOSTNAME__")
+    if [ -n "$TSKEY" ] && echo "$TSKEY" | grep -q '^tskey-'; then
+      # 等待 tailscaled 就绪（安装脚本启动 daemon 需要几秒）
+      for i in $(seq 1 30); do
+        tailscale status >/dev/null 2>&1 && break
+        sleep 1
+      done
+      tailscale up --authkey="$TSKEY" --ssh --hostname="$FINAL_HOSTNAME"
+    fi
+
+  # ── 完成标记 ──
+  - |
+    FINAL_HOSTNAME=$(cat /tmp/.muliao-hostname 2>/dev/null || hostname)
+    echo "cloud-init completed at $(date -Iseconds) hostname=$FINAL_HOSTNAME" >> /home/muliao/.cloud-init-done
+    rm -f /tmp/.muliao-hostname
+
+  # ── 清除 boot 分区中的明文 secret ──
+  - |
+    USERDATA="/boot/firmware/user-data"
+    if [ -f "$USERDATA" ]; then
+      sed -i \
+        -e 's/tskey-auth-[A-Za-z0-9_-]\{1,\}/tskey-auth-REDACTED/g' \
+        "$USERDATA"
+    fi
+
+# 首次启动完成后重启（确保所有用户组/服务生效）
+power_state:
+  mode: reboot
+  message: "cloud-init 初始化完成，重启中..."
+  timeout: 30
+  condition: true

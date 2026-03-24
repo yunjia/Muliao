@@ -19,11 +19,16 @@
     plan/                     # 规划类 prompt
 cli/
   backup.sh                   # 团队 workspace 备份/恢复工具
-docker/
-  Dockerfile                  # 运行镜像（node:24 + OpenClaw + 中文字体 + 浏览器依赖）
-  build.sh                    # 构建脚本（支持多平台 buildx）
-  run.sh                      # 启动脚本（--team, --restart 等）
-docker-compose.yml            # 容器编排（host 网络模式）
+  dev.sh                      # Multipass 开发 VM 管理（launch/shell/gateway 等）
+deploy/
+  cloud-init/
+    base-user-data.yaml       # cloud-init 基础模板（所有场景共享）
+    rpi-overlay.yaml          # RPi 特有扩展（Tailscale、序列号主机名等）
+    dev-overlay.yaml          # 开发 VM 特有扩展
+    render.sh                 # 模板合并 + 占位符替换工具
+  rpi/
+    flash-ssd.sh              # RPi SSD 烧录 + cloud-init 注入
+    deploy-team.sh            # 团队数据远程部署
 .env.example                  # 环境变量模板（复制为 .env）
 docs/
   design.md                   # 技术设计：8 维差异化、优先级、路线图
@@ -39,30 +44,42 @@ readme.md                     # 项目简介（面向用户）
 teams/                        # ← .gitignore，不纳入版本管理（OpenClaw 运行时数据）
 ```
 
-> Muliao 是脚手架项目：提供 Docker 脚本和文档，团队数据（`teams/`）整体 gitignore。
+> Muliao 是脚手架项目：提供 cloud-init 模板、开发 VM 脚本和文档，团队数据（`teams/`）整体 gitignore。
 > 每个团队的 `workspace/` 是独立的 git repo，可推到各自的 remote。
 
 ---
 
 ## 构建与运行
 
-### Docker
+### 开发环境（Multipass VM）
 
 ```bash
-# 构建镜像（当前平台）
-./docker/build.sh
-# 多平台构建并推送
-./docker/build.sh --push
-# 指定 Node 版本
-./docker/build.sh --node 22
+# 安装 Multipass（Ubuntu）
+sudo snap install multipass
 
-# 启动容器（gateway 自动运行）
-./docker/run.sh
+# 创建开发 VM（cloud-init 自动安装 Node.js + OpenClaw + 依赖）
+./cli/dev.sh launch
 # 指定团队
-./docker/run.sh --team hermes
+./cli/dev.sh launch --team hermes
+
+# 进入 VM
+./cli/dev.sh shell
+# 启动 gateway
+./cli/dev.sh gateway
+
+# 停止 / 删除 VM
+./cli/dev.sh stop
+./cli/dev.sh delete
 ```
 
+### RPi 部署
 
+```bash
+# 烧录 SSD（cloud-init 共享同一份 base 模板）
+sudo deploy/rpi/flash-ssd.sh /dev/sda --team hermes
+# 部署团队数据
+deploy/rpi/deploy-team.sh <hostname> --team hermes --start
+```
 
 ### 备份/恢复
 
@@ -91,9 +108,9 @@ cli/backup.sh list [--team NAME]          # 列出可用备份
 
 ## 技术要点
 
-- **无 package.json**：项目根目录没有 Node 项目文件，依赖在 Docker 容器内通过 `npm install -g openclaw@latest` 管理
-- **无 CI/CD**：当前手动构建/部署，使用 Docker 脚本
-- **Dev Container**：`.devcontainer.json` 存在，`remoteUser: "node"`
+- **无 package.json**：项目根目录没有 Node 项目文件，OpenClaw 通过 cloud-init 在 VM / RPi 内 `npm install -g openclaw@latest` 安装
+- **无 CI/CD**：当前手动部署
+- **开发环境**：Multipass VM（`cli/dev.sh`），与 RPi 共享同一份 cloud-init base 模板
 - **teams/ 是运行时数据**：包含 credentials、sessions、logs，整体 gitignore，不要修改或依赖其内容
 
 ---

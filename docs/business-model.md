@@ -70,7 +70,7 @@
 
 在 OpenClaw 之上提供 **UX Layer + 框架层**。
 
-**开源范围**：多 Agent 编排、场景模板库、Skills 体系、部署工具链（Docker / RPi）、UX Layer
+**开源范围**：多 Agent 编排、场景模板库、Skills 体系、部署工具链（Multipass / cloud-init / RPi）、UX Layer
 
 **不开源**：母公司产品代码、premium Skills
 

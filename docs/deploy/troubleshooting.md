@@ -1,10 +1,10 @@
 # 部署常见问题与排查记录
 
-记录 RPi / Docker 部署过程中踩过的真实的坑，供复现时快速定位。
+记录 RPi / OpenClaw 部署过程中踩过的真实的坑，供复现时快速定位。
 
 ---
 
-## 1. 容器启动崩溃：`RangeError: Invalid time zone specified: Etc/Unknown`
+## 1. Gateway 启动崩溃：`RangeError: Invalid time zone specified: Etc/Unknown`
 
 **现象**
 
@@ -14,21 +14,13 @@ RangeError: Invalid time zone specified: Etc/Unknown
     ...
 ```
 
-容器反复重启，`docker ps` 看到 `Restarting`。
+OpenClaw gateway 反复崩溃重启。
 
 **根本原因**
 
 Ubuntu 24.04 cloud-init 完成后，系统时区默认为 `Etc/Unknown`（无效值）。
-`docker-compose.yml` 里配置了 `TZ: ${TZ:-}`，当 `.env` 中没有 `TZ` 时，
-容器拿到的是空字符串，Node.js 再去读宿主机的 `/etc/localtime` symlink，
+`.env` 中没有 `TZ` 时，Node.js 读宿主机的 `/etc/localtime` symlink，
 发现目标是 `Etc/Unknown` → 抛出 RangeError 崩溃。
-
-**`docker-compose.yml` 相关配置：**
-
-```yaml
-environment:
-  TZ: ${TZ:-}
-```
 
 **修复方法**
 

@@ -1,0 +1,22 @@
+# ==============================================================================
+# Muliao — cloud-init dev overlay（Multipass 开发 VM）
+# ==============================================================================
+#
+# 开发环境特有配置：简化主机名、常用开发工具。
+# 由 render.sh 合并到 base-user-data.yaml 之上，生成开发 VM 的 user-data。
+#
+# Multipass 通过 --mount 共享 teams/<name>/ 到 VM 内 /home/muliao/.openclaw，
+# 无需 deploy-team.sh 或 Tailscale。
+# ==============================================================================
+
+# ── 追加到 packages ──
+packages:
+  - vim
+  - htop
+  - tree
+
+# ── 追加到 runcmd（在 base runcmd 之后执行） ──
+runcmd:
+  # ── 完成标记 ──
+  - |
+    echo "cloud-init completed at $(date -Iseconds) hostname=$(hostname)" >> /home/muliao/.cloud-init-done

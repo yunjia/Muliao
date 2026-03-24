@@ -1,0 +1,113 @@
+#cloud-config
+# ==============================================================================
+# Muliao — cloud-init base 模板
+# ==============================================================================
+#
+# 所有部署场景的共享基础：系统依赖、Node.js、OpenClaw、Docker（Agent Sandbox）。
+# 不直接使用——由 render.sh 与 overlay（rpi / dev）合并后生成最终 user-data。
+#
+# 占位符（render.sh 替换）：
+#   __HOSTNAME__    主机名
+#   __TIMEZONE__    时区
+# ==============================================================================
+
+hostname: __HOSTNAME__
+timezone: __TIMEZONE__
+
+users:
+  - name: muliao
+    groups: [sudo, docker]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+
+ssh_pwauth: false
+
+# --------------------------------------------------------------------------- #
+# 包管理
+# --------------------------------------------------------------------------- #
+package_update: true
+package_upgrade: true
+
+packages:
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gnupg
+  - lsb-release
+  - jq
+  - unzip
+  - rsync
+  # ── 常用 Skill / 浏览器依赖 ──
+  - ffmpeg
+  - ripgrep
+  - wget
+  - git
+  - libnss3
+  - libatk-bridge2.0-0
+  - libcups2
+  - libdrm2
+  - libxkbcommon0
+  - libxcomposite1
+  - libxdamage1
+  - libxfixes3
+  - libxrandr2
+  - libgbm1
+  - libasound2
+  - fonts-noto-cjk
+  - fonts-noto-color-emoji
+
+# --------------------------------------------------------------------------- #
+# 文件写入
+# --------------------------------------------------------------------------- #
+write_files:
+  # npm 全局包安装到用户目录（避免 sudo，便于 Agent 自行安装 Skill 依赖）
+  - path: /home/muliao/.npmrc
+    permissions: "0644"
+    owner: muliao:muliao
+    content: |
+      prefix=/home/muliao/.npm-global
+
+  # 将 npm-global/bin 加入 PATH（login shell + systemd 用户服务都能找到）
+  - path: /home/muliao/.profile.d/npm-global.sh
+    permissions: "0644"
+    owner: muliao:muliao
+    content: |
+      export PATH="/home/muliao/.npm-global/bin:$PATH"
+
+# --------------------------------------------------------------------------- #
+# 执行命令
+# --------------------------------------------------------------------------- #
+runcmd:
+  # ── Node.js 24（NodeSource APT） ──
+  - curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
+  - apt-get install -y nodejs
+
+  # ── npm 全局目录（muliao 用户无需 sudo 安装全局包） ──
+  - |
+    sudo -u muliao mkdir -p /home/muliao/.npm-global/bin
+    # 确保 .profile.d 片段能被 .bashrc 加载
+    sudo -u muliao mkdir -p /home/muliao/.profile.d
+    if ! grep -q 'profile.d' /home/muliao/.bashrc 2>/dev/null; then
+      echo '# Load profile.d snippets' >> /home/muliao/.bashrc
+      echo 'for f in ~/.profile.d/*.sh; do [ -r "$f" ] && . "$f"; done' >> /home/muliao/.bashrc
+    fi
+
+  # ── OpenClaw（裸机全局安装） ──
+  - |
+    export PATH="/home/muliao/.npm-global/bin:$PATH"
+    sudo -u muliao -i bash -c 'npm install -g openclaw@latest'
+
+  # ── Docker CE（仅用于 Agent Sandbox） ──
+  - curl -fsSL https://get.docker.com | sh
+  - systemctl enable docker
+  - usermod -aG docker muliao
+
+  # ── 启用 systemd lingering（用户服务在 logout 后仍运行） ──
+  - loginctl enable-linger muliao
+
+  # ── 目录结构 ──
+  - mkdir -p /home/muliao/.openclaw
+  - chown -R muliao:muliao /home/muliao
+
+  # ── 预拉取 sandbox 基础镜像（加速首次 sandbox 启动） ──
+  - docker pull debian:bookworm-slim || true
