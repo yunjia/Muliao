@@ -11,7 +11,7 @@
 # Volume 路径通过环境变量配置：
 #   MULIAO_DATA_DIR — OpenClaw 运行时数据目录（配置 + workspace + sessions）
 #   开发机：run.sh 自动设为 teams/<name>/
-#   RPi：在 .env 或 systemd 中设为绝对路径（如 /opt/muliao/data）
+#   RPi：在 .env 或 systemd 中设为绝对路径（如 /home/muliao/.openclaw）
 # ==============================================================================
 
 services:
@@ -45,7 +45,7 @@ services:
 
     volumes:
       # OpenClaw 运行时数据（credentials、sessions、config、workspace）
-      - ${MULIAO_DATA_DIR:-./.muliao/data}:/home/muliao/.openclaw
+      - ${MULIAO_DATA_DIR:-~/.openclaw}:/home/muliao/.openclaw
       # SSH keys（只读）
       - ~/.ssh:/home/muliao/.ssh:ro
       # 时区同步
@@ -86,7 +86,7 @@ services:
   #   environment:
   #     - RELAY_URL=wss://relay.muliao.io
   #   volumes:
-  #     - ${MULIAO_DATA_DIR:-./.muliao/data}:/config:ro
+  #     - ${MULIAO_DATA_DIR:-~/.openclaw}:/config:ro
   #   depends_on:
   #     - openclaw
   #   restart: unless-stopped

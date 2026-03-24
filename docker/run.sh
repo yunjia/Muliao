@@ -24,7 +24,7 @@
 #
 # Options:
 #   --restart         强制删除并重新创建容器
-#   --team NAME       团队名称，对应 teams/<NAME>/（默认：default）
+#   --team NAME       团队名称，对应 teams/<NAME>/（默认：muliao）
 #   --build           强制重新构建本地镜像（docker/Dockerfile）
 #   --image TAG       Docker 镜像 tag（默认：ghcr.io/muliaoio/muliao:latest）
 #   -h, --help        显示帮助
@@ -57,7 +57,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.."; pwd)"
 
 
 network="host"
-team_name="default"
+team_name="muliao"
 restart=0
 build=0
 tag=""

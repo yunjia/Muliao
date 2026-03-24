@@ -1,0 +1,149 @@
+#cloud-config
+# ==============================================================================
+# Muliao RPi 5 — cloud-init user-data
+# ==============================================================================
+#
+# 放置位置：Ubuntu Server ARM64 镜像 system-boot 分区根目录
+# 首次启动时 cloud-init 自动执行，完成所有初始化。
+#
+# 自定义项（flash-ssd.sh 会自动替换这些占位符）：
+#   __HOSTNAME__          主机名前缀（默认：muliao，启动时自动追加芯片序列号后4位）
+#   __TAILSCALE_AUTHKEY__  Tailscale pre-auth key（远程访问需要）
+#   __TIMEZONE__          时区（默认：开发机当前时区）
+#   __SSH_PUBKEY__        SSH 公钥（可选，Tailscale SSH 已够用）
+# ==============================================================================
+
+hostname: __HOSTNAME__
+# 注：这是临时主机名，runcmd 会读取芯片序列号生成最终主机名（如 muliao-a1b2）
+
+timezone: __TIMEZONE__
+
+# 默认通过 Tailscale SSH 访问，无需 SSH key
+users:
+  - name: muliao
+    groups: [sudo, docker]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    # 可选：flash-ssd.sh --ssh-key 时注入
+    ssh_authorized_keys:
+      - __SSH_PUBKEY__
+
+# 禁用密码登录
+ssh_pwauth: false
+
+# --------------------------------------------------------------------------- #
+# 包管理
+# --------------------------------------------------------------------------- #
+package_update: true
+package_upgrade: true
+
+packages:
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gnupg
+  - lsb-release
+  - avahi-daemon          # 局域网 mDNS fallback（muliao.local）
+  - jq
+  - unzip
+  - rsync
+  - console-setup         # 控制台字体配置
+  - xfonts-terminus       # Terminus 像素字体（终端清晰锐利）
+
+# --------------------------------------------------------------------------- #
+# 文件写入
+# --------------------------------------------------------------------------- #
+write_files:
+  # muliao.service 从 boot 分区复制（见 runcmd），源文件：deploy/rpi/muliao.service
+
+  # docker-compose.yml 占位（deploy-team.sh 会覆盖为最新版本）
+  # 这里写一个最小版本确保 muliao.service 不会启动失败
+  - path: /home/muliao/.deploy-pending
+    permissions: "0644"
+    content: |
+      # 此文件表示 deploy-team.sh 尚未执行。
+      # muliao.service 不会自动启动，直到团队数据部署完成。
+      # 运行 deploy-team.sh 后此文件会被删除。
+
+  # .env 模板（deploy-team.sh 会覆盖）
+  - path: /home/muliao/.env
+    permissions: "0600"
+    owner: muliao:muliao
+    content: |
+      # Muliao RPi 环境变量（由 deploy-team.sh 自动生成）
+      MULIAO_DATA_DIR=/home/muliao/.openclaw
+      MULIAO_CONTAINER_NAME=muliao
+      MULIAO_IMAGE=ghcr.io/muliaoio/muliao:latest
+
+# --------------------------------------------------------------------------- #
+# 执行命令
+# --------------------------------------------------------------------------- #
+runcmd:
+  # ── 生成唯一主机名（前缀 + RPi 序列号后 4 位）──
+  - |
+    PREFIX="__HOSTNAME__"
+    # 方法 1: device-tree（标准路径）
+    SERIAL=$(cat /sys/firmware/devicetree/base/serial-number 2>/dev/null | tr -d '\0')
+    # 方法 2: /proc/cpuinfo fallback（RPi 5 BCM2712 等）
+    if [ -z "$SERIAL" ]; then
+      SERIAL=$(grep -i '^Serial' /proc/cpuinfo 2>/dev/null | awk '{print $3}')
+    fi
+    if [ -n "$SERIAL" ]; then
+      SUFFIX=$(echo "$SERIAL" | tail -c 5 | tr '[:upper:]' '[:lower:]')
+      FINAL_HOSTNAME="${PREFIX}-${SUFFIX}"
+    else
+      FINAL_HOSTNAME="$PREFIX"
+    fi
+    hostnamectl set-hostname "$FINAL_HOSTNAME"
+    echo "$FINAL_HOSTNAME" > /etc/hostname
+    sed -i "s/127.0.1.1.*/127.0.1.1\t$FINAL_HOSTNAME/" /etc/hosts
+    # 防止 cloud-init 在重启后覆盖 runcmd 设置的主机名
+    echo "preserve_hostname: true" > /etc/cloud/cloud.cfg.d/99-preserve-hostname.cfg
+    # 保存供后续步骤使用
+    echo "$FINAL_HOSTNAME" > /tmp/.muliao-hostname
+
+  # ── muliao.service（从 boot 分区复制，flash-ssd.sh 已放置）──
+  - cp /boot/firmware/muliao.service /etc/systemd/system/muliao.service
+
+  # ── Docker CE ──
+  - curl -fsSL https://get.docker.com | sh
+  - systemctl enable docker
+  - usermod -aG docker muliao
+
+  # ── Tailscale ──
+  - curl -fsSL https://tailscale.com/install.sh | sh
+  # 如果提供了 auth key 则自动加入 tailnet（启用 Tailscale SSH）
+  - |
+    TSKEY="__TAILSCALE_AUTHKEY__"
+    FINAL_HOSTNAME=$(cat /tmp/.muliao-hostname 2>/dev/null || echo "__HOSTNAME__")
+    if [ -n "$TSKEY" ] && echo "$TSKEY" | grep -q '^tskey-'; then
+      # 等待 tailscaled 就绪（安装脚本启动 daemon 需要几秒）
+      for i in $(seq 1 30); do
+        tailscale status >/dev/null 2>&1 && break
+        sleep 1
+      done
+      tailscale up --authkey="$TSKEY" --ssh --hostname="$FINAL_HOSTNAME"
+    fi
+
+  # ── 目录结构 ──
+  - mkdir -p /home/muliao/.openclaw
+
+  # ── 预拉取 Docker 镜像（首次启动需要时间，提前拉好） ──
+  - docker pull ghcr.io/muliaoio/muliao:latest
+  - docker pull containrrr/watchtower
+
+  # ── 启用 muliao.service（不立即启动，等 deploy-team.sh 部署数据后启动） ──
+  - systemctl enable muliao.service
+
+  # ── 完成标记 ──
+  - |
+    FINAL_HOSTNAME=$(cat /tmp/.muliao-hostname 2>/dev/null || hostname)
+    echo "cloud-init completed at $(date -Iseconds) hostname=$FINAL_HOSTNAME" >> /home/muliao/.cloud-init-done
+    rm -f /tmp/.muliao-hostname
+
+# 首次启动完成后重启（确保所有用户组/服务生效）
+power_state:
+  mode: reboot
+  message: "cloud-init 初始化完成，重启中..."
+  timeout: 30
+  condition: true

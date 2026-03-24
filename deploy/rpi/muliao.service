@@ -1,0 +1,38 @@
+# ==============================================================================
+# muliao.service — Muliao OpenClaw Docker Compose 自启服务
+# ==============================================================================
+#
+# 唯一来源：此文件是 muliao.service 的单一维护点。
+#
+# 部署方式：
+#   flash-ssd.sh 烧录时将此文件复制到 boot 分区（/boot/firmware/），
+#   cloud-init runcmd 首次启动时自动安装到 /etc/systemd/system/。
+#
+# 手动安装（调试 / 更新用）：
+#   sudo cp deploy/rpi/muliao.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl restart muliao.service
+#
+# 查看日志：
+#   journalctl -u muliao.service -f
+# ==============================================================================
+
+[Unit]
+Description=Muliao OpenClaw Agent
+After=docker.service network-online.target
+Wants=docker.service network-online.target
+
+[Service]
+Type=simple
+User=muliao
+Group=docker
+WorkingDirectory=/home/muliao
+EnvironmentFile=/home/muliao/.env
+ExecStartPre=/usr/bin/docker compose pull --quiet
+ExecStart=/usr/bin/docker compose up --remove-orphans
+ExecStop=/usr/bin/docker compose down
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -13,7 +13,7 @@
 #   list                列出已有备份
 #
 # Options:
-#   --team NAME         团队名称，对应 teams/<NAME>/（默认：default）
+#   --team NAME         团队名称，对应 teams/<NAME>/（默认：muliao）
 #   --force             还原时跳过覆盖确认
 #   -h, --help          显示帮助
 #
@@ -23,12 +23,12 @@
 #   文件名格式：<team>-<YYYY-MM-DD-HHMMSS>.zip
 #
 # Examples:
-#   backup.sh backup                              # 备份 default team
+#   backup.sh backup                              # 备份 muliao team
 #   backup.sh backup --team hermes                # 备份 hermes team
 #   backup.sh list                                # 列出所有备份
 #   backup.sh list --team hermes                  # 仅列出 hermes 的备份
-#   backup.sh restore teams/.backups/default-2026-03-20-153045.zip
-#   backup.sh restore default-2026-03-20-153045.zip --team default --force
+#   backup.sh restore teams/.backups/muliao-2026-03-20-153045.zip
+#   backup.sh restore muliao-2026-03-20-153045.zip --team muliao --force
 # ==============================================================================
 
 set -euo pipefail
@@ -66,7 +66,7 @@ check_deps() {
 # Parse arguments
 # --------------------------------------------------------------------------- #
 COMMAND=""
-TEAM="default"
+TEAM="muliao"
 TEAM_SET=0
 FORCE=0
 RESTORE_FILE=""
