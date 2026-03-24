@@ -1,0 +1,87 @@
+_metadata:
+  major_version: 1
+
+display_information:
+  name: 赫尔墨斯
+  description: 你的 AI 幕僚团队长
+  background_color: "#2C2D30"
+
+features:
+  bot_user:
+    display_name: Hermes
+    always_online: true
+  app_home:
+    home_tab_enabled: false
+    messages_tab_enabled: true       # 启用 DM
+    messages_tab_read_only_enabled: false
+  assistant_view:                    # assistant:write scope 必须启用此功能
+    assistant_description: "你的 AI 幕僚团队长，by OpenClaw"
+
+oauth_config:
+  scopes:
+    bot:
+      # 消息
+      - app_mentions:read
+      - chat:write
+      - chat:write.customize          # 自定义 bot 名/头像（推荐）
+      - chat:write.public             # 向未加入的公共频道发消息（按需）
+      # 频道历史（含附件）
+      - channels:history
+      - groups:history
+      - im:history
+      - mpim:history
+      # 频道信息
+      - channels:read
+      - groups:read
+      - im:read
+      - mpim:read
+      - channels:join                 # 自动加入公共频道（可选）
+      # 写入（发消息到 DM / 私有频道 / 群组DM）
+      - im:write
+      - groups:write
+      - mpim:write
+      # 文件/附件
+      - files:read
+      - files:write
+      # Reaction
+      - reactions:read
+      - reactions:write
+      # 置顶
+      - pins:read
+      - pins:write
+      # 成员信息
+      - users:read
+      - users:read.email              # 读取成员邮箱（OpenClaw 需要）
+      - team:read
+      - emoji:read                    # 自定义 emoji 列表
+      # AI 助理（流式输出/打字指示器）
+      - assistant:write               # 推荐
+
+settings:
+  event_subscriptions:
+    bot_events:
+      # 消息事件
+      - app_mention
+      - message.channels
+      - message.groups
+      - message.im
+      - message.mpim
+      # AI 助理线程（assistant_view 必须）
+      - assistant_thread_started
+      - assistant_thread_context_changed
+      # Reaction
+      - reaction_added
+      - reaction_removed
+      # 成员变动（Channel join/leave）
+      - member_joined_channel
+      - member_left_channel
+      # 频道管理
+      - channel_rename
+      - pin_added
+      - pin_removed
+  interactivity:
+    is_enabled: true                  # 交互式回复（按钮/选单）需要
+  org_deploy_enabled: false
+  socket_mode_enabled: true           # 关键：启用 Socket Mode
+  is_hosted: false
+  token_rotation_enabled: false
