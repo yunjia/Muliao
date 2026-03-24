@@ -24,14 +24,18 @@
 #
 # Options:
 #   --team NAME           团队名称，对应 teams/<NAME>/（默认：muliao）
-#                         从 teams/<NAME>/.env 读取 TAILSCALE_AUTHKEY 等配置
+#                         从 teams/<NAME>/.env 读取部署配置（推荐，避免反复传参——
+#                         支持的 .env 变量见 .env.example 的「RPi 部署」区块）
 #   --hostname-prefix PFX  主机名前缀（默认：与 --team 同名）
 #                         启动时自动追加 RPi 序列号后 4 位（如 hermes-a1b2）
+#                         也可在 .env 中设置: HOSTNAME_PREFIX=hermes
 #   --timezone TZ         时区（默认：开发机当前时区）
+#                         也可在 .env 中设置: TIMEZONE=Asia/Tokyo
 #   --tailscale-key KEY   Tailscale pre-auth key（覆盖 .env 中的值）
-#   --resolution RES      HDMI 输出分辨率（默认：显示器原生分辨率）
+#   --resolution RES      HDMI 输出分辨率（默认：800x480，适配小触摸屏）
 #                         预设值: 720p / 1080p / 4k  或自定义 WxH（如 2560x1440）
 #                         如果你觉得终端字会糊，说明分辨率和屏幕不匹配
+#                         也可在 .env 中设置: HDMI_RESOLUTION=1080p
 #   --ssh-key PATH        指定 SSH 公钥（默认自动检测 ~/.ssh/id_*.pub）
 #   --image PATH          使用本地镜像文件（跳过下载）
 #   --skip-flash          跳过烧录，仅注入 cloud-init（设备已烧录过）
@@ -100,17 +104,20 @@ _box() {
 # --------------------------------------------------------------------------- #
 device=""
 team_name="muliao"
-hostname_prefix=""   # 留空，默认跟随 team_name
-timezone="$(cat /etc/timezone 2>/dev/null || echo Asia/Shanghai)"
+hostname_prefix=""          # 最终生效值：由 .env HOSTNAME_PREFIX 或 CLI 填充，留空则跟随 team_name
+cli_hostname_prefix=""      # CLI --hostname-prefix 暂存（最高优先级）
+timezone="$(cat /etc/timezone 2>/dev/null || echo Asia/Shanghai)"  # 内置默认：读取开发机时区
+cli_timezone=""             # CLI --timezone 暂存（最高优先级）
 tailscale_key=""
-ssh_key_path=""     # 可选：额外注入 SSH 公钥
-resolution="800x480"    # HDMI 分辨率（默认 800x480 适配小触摸屏）
+ssh_key_path=""             # 可选：额外注入 SSH 公钥（默认自动检测 ~/.ssh/id_*.pub）
+resolution="800x480"        # 内置默认值（适配小触摸屏）；可由 .env HDMI_RESOLUTION 覆盖
+cli_resolution=""           # CLI --resolution 暂存（最高优先级）
 local_image=""
 skip_flash=0
-boot_dir=""    # WSL2 模式：直接指定已挂载的 boot 分区
-cli_tailscale_key=""  # 命令行显式指定的 key（最高优先级）
-ghcr_token=""         # GitHub Token，用于拉取 ghcr.io 私有镜像
-cli_ghcr_token=""    # 命令行显式指定（最高优先级）
+boot_dir=""                 # WSL2 模式：直接指定已挂载的 boot 分区
+cli_tailscale_key=""        # CLI --tailscale-key 暂存（最高优先级）
+ghcr_token=""               # GitHub Token，用于拉取 ghcr.io 私有镜像
+cli_ghcr_token=""           # CLI --ghcr-token 暂存（最高优先级）
 
 # --------------------------------------------------------------------------- #
 # Argument parsing
@@ -125,9 +132,9 @@ while [[ $# -gt 0 ]]; do
     -h|--help)
         show_help; exit 0 ;;
     --hostname-prefix)
-        hostname_prefix="$2"; shift 2 ;;
+        cli_hostname_prefix="$2"; shift 2 ;;  # 暂存，.env 读取后再合并
     --timezone)
-        timezone="$2"; shift 2 ;;
+        cli_timezone="$2"; shift 2 ;;          # 暂存，.env 读取后再合并
     --team)
         team_name="$2"; shift 2 ;;
     --tailscale-key)
@@ -135,7 +142,7 @@ while [[ $# -gt 0 ]]; do
     --ghcr-token)
         cli_ghcr_token="$2"; shift 2 ;;
     --resolution)
-        resolution="$2"; shift 2 ;;
+        cli_resolution="$2"; shift 2 ;;        # 暂存，.env 读取后再合并
     --ssh-key)
         ssh_key_path="$2"; shift 2 ;;
     --image)
@@ -188,10 +195,40 @@ _gt=$(_read_env_key "$team_env" GHCR_TOKEN || true)
 
 [[ -n "$cli_ghcr_token" ]] && ghcr_token="$cli_ghcr_token"
 
-unset _ts _gt
+# HOSTNAME_PREFIX（主机名前缀；优先级：CLI > teams/.env > .env > team_name）
+_hp=$(_read_env_key "$root_env" HOSTNAME_PREFIX || true)
+[[ -n "${_hp:-}" ]] && hostname_prefix="$_hp"
 
-# hostname prefix 默认跟随 team name
+_hp=$(_read_env_key "$team_env" HOSTNAME_PREFIX || true)
+[[ -n "${_hp:-}" ]] && hostname_prefix="$_hp"
+
+[[ -n "$cli_hostname_prefix" ]] && hostname_prefix="$cli_hostname_prefix"
+
+# 最终 fallback：用 team_name 作为主机名前缀
 [[ -z "$hostname_prefix" ]] && hostname_prefix="$team_name"
+
+# TIMEZONE（云初始化时区；仅影响 RPi 系统时区，不影响 Docker 容器的 TZ）
+# 回退优先级：TIMEZONE > TZ（仅填一个 TZ 即可同时控制容器和宿主机时区）
+_tz=$(_read_env_key "$root_env" TIMEZONE || true)
+[[ -z "${_tz:-}" ]] && _tz=$(_read_env_key "$root_env" TZ || true)
+[[ -n "${_tz:-}" ]] && timezone="$_tz"
+
+_tz=$(_read_env_key "$team_env" TIMEZONE || true)
+[[ -z "${_tz:-}" ]] && _tz=$(_read_env_key "$team_env" TZ || true)
+[[ -n "${_tz:-}" ]] && timezone="$_tz"
+
+[[ -n "$cli_timezone" ]] && timezone="$cli_timezone"
+
+# HDMI_RESOLUTION（HDMI 输出分辨率；未设置时保留内置默认值 800x480）
+_res=$(_read_env_key "$root_env" HDMI_RESOLUTION || true)
+[[ -n "${_res:-}" ]] && resolution="$_res"
+
+_res=$(_read_env_key "$team_env" HDMI_RESOLUTION || true)
+[[ -n "${_res:-}" ]] && resolution="$_res"
+
+[[ -n "$cli_resolution" ]] && resolution="$cli_resolution"
+
+unset _ts _gt _hp _tz _res
 
 if [[ -n "$tailscale_key" ]]; then
     if [[ -f "$team_env" ]]; then

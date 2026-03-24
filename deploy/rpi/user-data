@@ -147,6 +147,17 @@ runcmd:
     echo "cloud-init completed at $(date -Iseconds) hostname=$FINAL_HOSTNAME" >> /home/muliao/.cloud-init-done
     rm -f /tmp/.muliao-hostname
 
+  # ── 清除 boot 分区中的明文 secret ──
+  - |
+    USERDATA="/boot/firmware/user-data"
+    if [ -f "$USERDATA" ]; then
+      sed -i \
+        -e 's/tskey-auth-[A-Za-z0-9_-]\{1,\}/tskey-auth-REDACTED/g' \
+        -e 's/ghp_[A-Za-z0-9_]\{1,\}/ghp_REDACTED/g' \
+        -e 's/github_pat_[A-Za-z0-9_]\{1,\}/github_pat_REDACTED/g' \
+        "$USERDATA"
+    fi
+
 # 首次启动完成后重启（确保所有用户组/服务生效）
 power_state:
   mode: reboot
