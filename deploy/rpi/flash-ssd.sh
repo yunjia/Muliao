@@ -116,8 +116,6 @@ local_image=""
 skip_flash=0
 boot_dir=""                 # WSL2 模式：直接指定已挂载的 boot 分区
 cli_tailscale_key=""        # CLI --tailscale-key 暂存（最高优先级）
-ghcr_token=""               # GitHub Token，用于拉取 ghcr.io 私有镜像
-cli_ghcr_token=""           # CLI --ghcr-token 暂存（最高优先级）
 
 # --------------------------------------------------------------------------- #
 # Argument parsing
@@ -139,8 +137,6 @@ while [[ $# -gt 0 ]]; do
         team_name="$2"; shift 2 ;;
     --tailscale-key)
         cli_tailscale_key="$2"; shift 2 ;;
-    --ghcr-token)
-        cli_ghcr_token="$2"; shift 2 ;;
     --resolution)
         cli_resolution="$2"; shift 2 ;;        # 暂存，.env 读取后再合并
     --ssh-key)
@@ -167,18 +163,13 @@ done
 # --------------------------------------------------------------------------- #
 # 加载团队 .env 配置
 # --------------------------------------------------------------------------- #
-# 优先级：命令行 --tailscale-key > teams/<name>/.env > 根目录 .env
+# 每个团队一份完整 .env。优先级：CLI 参数 > teams/<name>/.env
 _read_env_key() {
     local file="$1" key="$2"
     [[ -f "$file" ]] && grep -E "^${key}=" "$file" 2>/dev/null | head -1 | cut -d= -f2-
 }
 
-# 先读根目录 .env，再用团队 .env 覆盖
 team_env="${REPO_ROOT}/teams/${team_name}/.env"
-root_env="${REPO_ROOT}/.env"
-
-_ts=$(_read_env_key "$root_env" TAILSCALE_AUTHKEY || true)
-[[ -n "${_ts:-}" ]] && tailscale_key="$_ts"
 
 _ts=$(_read_env_key "$team_env" TAILSCALE_AUTHKEY || true)
 [[ -n "${_ts:-}" ]] && tailscale_key="$_ts"
@@ -186,19 +177,7 @@ _ts=$(_read_env_key "$team_env" TAILSCALE_AUTHKEY || true)
 # 命令行参数最高优先级
 [[ -n "$cli_tailscale_key" ]] && tailscale_key="$cli_tailscale_key"
 
-# GHCR Token（用于拉取 ghcr.io 私有镜像）
-_gt=$(_read_env_key "$root_env" GHCR_TOKEN || true)
-[[ -n "${_gt:-}" ]] && ghcr_token="$_gt"
-
-_gt=$(_read_env_key "$team_env" GHCR_TOKEN || true)
-[[ -n "${_gt:-}" ]] && ghcr_token="$_gt"
-
-[[ -n "$cli_ghcr_token" ]] && ghcr_token="$cli_ghcr_token"
-
-# HOSTNAME_PREFIX（主机名前缀；优先级：CLI > teams/.env > .env > team_name）
-_hp=$(_read_env_key "$root_env" HOSTNAME_PREFIX || true)
-[[ -n "${_hp:-}" ]] && hostname_prefix="$_hp"
-
+# HOSTNAME_PREFIX（主机名前缀；优先级：CLI > .env > team_name）
 _hp=$(_read_env_key "$team_env" HOSTNAME_PREFIX || true)
 [[ -n "${_hp:-}" ]] && hostname_prefix="$_hp"
 
@@ -208,11 +187,7 @@ _hp=$(_read_env_key "$team_env" HOSTNAME_PREFIX || true)
 [[ -z "$hostname_prefix" ]] && hostname_prefix="$team_name"
 
 # TIMEZONE（云初始化时区；仅影响 RPi 系统时区，不影响 Docker 容器的 TZ）
-# 回退优先级：TIMEZONE > TZ（仅填一个 TZ 即可同时控制容器和宿主机时区）
-_tz=$(_read_env_key "$root_env" TIMEZONE || true)
-[[ -z "${_tz:-}" ]] && _tz=$(_read_env_key "$root_env" TZ || true)
-[[ -n "${_tz:-}" ]] && timezone="$_tz"
-
+# 回退优先级：TIMEZONE > TZ
 _tz=$(_read_env_key "$team_env" TIMEZONE || true)
 [[ -z "${_tz:-}" ]] && _tz=$(_read_env_key "$team_env" TZ || true)
 [[ -n "${_tz:-}" ]] && timezone="$_tz"
@@ -220,23 +195,18 @@ _tz=$(_read_env_key "$team_env" TIMEZONE || true)
 [[ -n "$cli_timezone" ]] && timezone="$cli_timezone"
 
 # HDMI_RESOLUTION（HDMI 输出分辨率；未设置时保留内置默认值 800x480）
-_res=$(_read_env_key "$root_env" HDMI_RESOLUTION || true)
-[[ -n "${_res:-}" ]] && resolution="$_res"
-
 _res=$(_read_env_key "$team_env" HDMI_RESOLUTION || true)
 [[ -n "${_res:-}" ]] && resolution="$_res"
 
 [[ -n "$cli_resolution" ]] && resolution="$cli_resolution"
 
-unset _ts _gt _hp _tz _res
+unset _ts _hp _tz _res
 
 if [[ -n "$tailscale_key" ]]; then
-    if [[ -f "$team_env" ]]; then
-        info "Tailscale key 来源: teams/${team_name}/.env"
-    elif [[ -n "$cli_tailscale_key" ]]; then
+    if [[ -n "$cli_tailscale_key" ]]; then
         info "Tailscale key 来源: 命令行参数"
     else
-        info "Tailscale key 来源: .env"
+        info "Tailscale key 来源: teams/${team_name}/.env"
     fi
 fi
 
@@ -303,7 +273,6 @@ _box "团队:         $team_name"
 _box "主机名前缀:   ${hostname_prefix}-<xxxx>"
 _box "时区:         $timezone"
 _box "Tailscale:    ${tailscale_key:+已配置}"
-_box "GHCR Token:   ${ghcr_token:+已配置}"
 _box "分辨率:       ${resolution:-自动检测}"
 if [[ -n "$ssh_pubkey" ]]; then
     _box "SSH 公钥:     $ssh_key_path"
@@ -400,7 +369,6 @@ sed \
     -e "s|__TIMEZONE__|${timezone}|g" \
     -e "s|__TAILSCALE_AUTHKEY__|${tailscale_key}|g" \
     -e "s|__SSH_PUBKEY__|${ssh_pubkey}|g" \
-    -e "s|__GHCR_TOKEN__|${ghcr_token}|g" \
     "$user_data_template" | tr -d '\r' > "${mount_point}/user-data"
 
 # 如果没有提供 SSH key，删除空的 ssh_authorized_keys 条目
@@ -412,10 +380,6 @@ if [[ -z "$ssh_pubkey" ]]; then
 fi
 
 ok "cloud-init user-data 已写入"
-
-# 复制 muliao.service 到 boot 分区（cloud-init runcmd 会从此处安装）
-cp "${SCRIPT_DIR}/muliao.service" "${mount_point}/muliao.service"
-ok "muliao.service 已写入"
 
 # 写入 meta-data（含唯一 instance-id，确保 cloud-init 每次刷写都重新执行）
 echo "instance-id: muliao-$(date +%s)" > "${mount_point}/meta-data"

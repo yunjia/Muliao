@@ -40,14 +40,17 @@
 ┌─────────────────────────────────────────┐
 │  RPi 5 设备                              │
 ├─────────────────────────────────────────┤
-│  Docker Compose                          │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ │
-│  │ OpenClaw │ │ Device   │ │ Watchtower│ │
-│  │ (Agent)  │ │ Agent    │ │ (更新)    │ │
-│  └──────────┘ └──────────┘ └──────────┘ │
+│  裸机 OpenClaw Gateway                   │
+│  ┌──────────┐ ┌──────────┐              │
+│  │ OpenClaw │ │ Docker   │              │
+│  │ Gateway  │ │ Sandbox  │              │
+│  │ (systemd │ │ (Agent   │              │
+│  │  user    │ │  工具    │              │
+│  │  service)│ │  隔离)   │              │
+│  └──────────┘ └──────────┘              │
 ├─────────────────────────────────────────┤
 │  Ubuntu Server 24.04 LTS (64-bit)       │
-│  + Docker CE                            │
+│  + Node.js 24 + Docker CE (sandbox)     │
 └─────────────────────────────────────────┘
 │  NVMe SSD / RPi 5 16GB / 网络           │
 └─────────────────────────────────────────┘
@@ -341,35 +344,44 @@ Step 4: 交付
 
 **cloud-init `user-data` 配置要点：**
 
+> **架构变更**：RPi 使用裸机 Node.js + OpenClaw，Docker 仅用于 Agent Sandbox。
+> 服务通过 `openclaw gateway install` 创建 systemd 用户服务，无需自定义 unit file。
+
 ```yaml
 #cloud-config
 package_update: true
 packages:
-  - docker-ce
-  - docker-compose-plugin
+  - curl
   - avahi-daemon          # 局域网 fallback
-  - tailscale
-  - hostapd               # WiFi AP 配网
-  - dnsmasq               # WiFi AP DHCP/DNS
+  - ffmpeg                # Skill 常用依赖
+  - jq
+  - ripgrep
+  - fonts-noto-cjk        # 中文字体
+  # + Chromium/Playwright 依赖库...
 
 runcmd:
-  # 预拉取 Docker 镜像
-  - docker pull ghcr.io/muliaoio/muliao:latest
-  - docker pull containrrr/watchtower
-  # 启用 Muliao 服务
-  - systemctl enable --now muliao.service
-
-write_files:
-  - path: /etc/systemd/system/muliao.service
-    content: |  # systemd unit（开机自启 Docker Compose）
-      ...
+  # 安装 Node.js 24（NodeSource APT）
+  - curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
+  - apt-get install -y nodejs
+  # 裸机安装 OpenClaw
+  - sudo -u muliao -i bash -c 'npm install -g openclaw@latest'
+  # Docker CE（仅用于 Agent Sandbox）
+  - curl -fsSL https://get.docker.com | sh
+  # 启用 systemd lingering（用户服务在 logout 后仍运行）
+  - loginctl enable-linger muliao
+  # 预拉取 sandbox 基础镜像
+  - docker pull debian:bookworm-slim
 ```
 
 **新增文件：**
 - `deploy/rpi/user-data` — cloud-init 配置（声明式 YAML，一切初始化逻辑集中于此）
 - `deploy/rpi/flash-ssd.sh` — 烧录 + 注入 cloud-init 的自动化脚本
-- `deploy/rpi/muliao.service` — systemd unit file
 - `deploy/rpi/wifi-setup/` — WiFi AP 配网服务（hostapd 配置 + Captive Portal 页面 + systemd service）
+
+**服务管理（由 deploy-team.sh 在数据部署后执行）：**
+- `openclaw gateway install` — 自动生成 systemd 用户服务
+- `systemctl --user enable --now openclaw-gateway.service` — 启用并启动
+- `openclaw doctor` — 审计和修复服务配置
 
 ### Step 3: 场景模板系统
 *前置：无依赖，可与 Step 1/2 并行*
@@ -498,7 +510,7 @@ Device Agent 是 RPi 端的轻量服务，负责：
 
 **Phase A 必备：**
 - 设备出厂前加入你的 Tailscale tailnet
-- 你可以通过 `ssh pi@<tailscale-ip>` 远程排查任何问题
+- 你可以通过 `ssh muliao@<tailscale-ip>` 远程排查任何问题
 - 用户不需要知道 Tailscale 的存在
 
 **Phase B 可选：**
@@ -550,7 +562,7 @@ Device Agent 是 RPi 端的轻量服务，负责：
 | Telegram Bot | 团队成员预创建 | PWA 交互式引导 |
 | 场景模板 | PWA 向导选择 | PWA 可视化选择 |
 | 远程维护 | Tailscale SSH | Tailscale + PWA 远程协助开关 |
-| 系统更新 | SSH + docker pull | PWA 一键更新 / 自动更新 |
+| 系统更新 | SSH + openclaw gateway install --force | PWA 一键更新 / 自动更新 |
 | 状态监控 | muliao.io 仪表盘 | muliao.io 仪表盘 |
 | 备份恢复 | CLI backup.sh + PWA | PWA 操作 |
 | 多用户/团队 | ❌ 单用户 | ✅ muliao.io 管理多团队 |
@@ -567,7 +579,6 @@ Device Agent 是 RPi 端的轻量服务，负责：
 | `docker/.env.example` | 环境变量模板 |
 | `deploy/rpi/user-data` | cloud-init 配置（首次启动自动初始化） |
 | `deploy/rpi/flash-ssd.sh` | 烧录 Ubuntu 镜像 + 注入 cloud-init 的自动化脚本 |
-| `deploy/rpi/muliao.service` | systemd 开机自启服务 |
 | `deploy/rpi/README.md` | RPi 部署文档 |
 | `deploy/rpi/wifi-setup/` | WiFi AP 配网服务（Captive Portal + hostapd 配置） |
 | `device-agent/` | RPi 端设备代理（WebSocket 连接云端、执行配置指令、上报状态） |
@@ -613,7 +624,7 @@ Device Agent 是 RPi 端的轻量服务，负责：
 | 硬件 | RPi 5 16GB + NVMe SSD | 用户确认；16GB 为 Chromium + 多容器留足余量 |
 | LLM 策略 | 纯云端 API | 用户确认；RPi 做编排和转发，不做本地推理 |
 | 初期用户数 | 单用户专属 | 用户确认；后期扩展到团队 |
-| 容器编排 | Docker Compose（非 K8s） | RPi 单机场景用 K8s 过重，Compose 足够 |
+| 容器编排 | 裸机 OpenClaw + Docker Sandbox | RPi 裸机运行解决 npm 包持久化问题；Docker 仅用于 Agent 工具执行隔离 |
 | 用户入口 | `muliao.io` 云端 PWA + Capacitor iOS/Android App（同一套前端代码） | Web 版全平台可用；App 版解决 iOS BLE 配网、APNs Push、App Store 分发；两者共享同一前端仓库 |
 | 设备通信 | 云端 Relay（WebSocket） | RPi 主动外连无需端口转发；参考 Nabu Casa / Plex 架构 |
 | 网络发现 | 配对码 + 云端自动匹配（Avahi mDNS 作为局域网 fallback） | 用户输入配对码即可，无需查找设备 IP |

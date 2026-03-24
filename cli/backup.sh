@@ -19,7 +19,7 @@
 #   --host HOST         RPi 主机名或 IP（pull/push 必需，Tailscale hostname 或 LAN IP）
 #   --user USER         SSH 用户名（默认：muliao）
 #   --force             还原/push 时跳过覆盖确认
-#   --restart           push 完成后重启 muliao.service
+#   --restart           push 完成后重启 openclaw-gateway
 #   -h, --help          显示帮助
 #
 # Description:
@@ -67,7 +67,7 @@ ok()   { echo "✅ $*"; }
 # --------------------------------------------------------------------------- #
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.."; pwd)"
 BACKUP_DIR="${REPO_ROOT}/teams/.backups"
-# RPi remote paths (must match deploy-team.sh / muliao.service)
+# RPi remote paths (must match deploy-team.sh / openclaw-gateway.service)
 REMOTE_DATA="/home/muliao/.openclaw"
 # --------------------------------------------------------------------------- #
 # Dependency check
@@ -384,7 +384,7 @@ do_push() {
     if [[ "$FORCE" -eq 0 ]]; then
         echo "⚠️  即将还原到 RPi ${RPI_HOST}:${REMOTE_DATA}/"
         echo "   来源: $(basename "$zip_path")"
-        [[ "$DO_RESTART" -eq 1 ]] && echo "   还原后将重启 muliao.service"
+        [[ "$DO_RESTART" -eq 1 ]] && echo "   还原后将重启 openclaw-gateway"
         read -r -p "   确认执行？远程数据将被覆盖 [y/N] " answer
         case "$answer" in
             [yY]|[yY][eE][sS]) ;;
@@ -397,8 +397,8 @@ do_push() {
 
     # Stop service before restore if --restart
     if [[ "$DO_RESTART" -eq 1 ]]; then
-        info "停止 muliao.service..."
-        ssh "$ssh_target" "sudo systemctl stop muliao.service" 2>/dev/null || true
+        info "停止 openclaw-gateway..."
+        ssh "$ssh_target" "systemctl --user stop openclaw-gateway.service" 2>/dev/null || true
     fi
 
     info "正在上传备份到 RPi..."
@@ -418,8 +418,8 @@ do_push() {
 
     # Restart service if requested
     if [[ "$DO_RESTART" -eq 1 ]]; then
-        info "启动 muliao.service..."
-        ssh "$ssh_target" "sudo systemctl start muliao.service"
+        info "启动 openclaw-gateway..."
+        ssh "$ssh_target" "systemctl --user start openclaw-gateway.service"
         ok "服务已重启"
     fi
 }

@@ -88,16 +88,20 @@ done
 # --------------------------------------------------------------------------- #
 # .env initialization
 # --------------------------------------------------------------------------- #
-if [[ ! -f "${REPO_ROOT}/.env" ]]; then
-    echo "Initializing ${REPO_ROOT}/.env from .env.example..."
-    cp "${REPO_ROOT}/.env.example" "${REPO_ROOT}/.env"
+# 每个团队一份完整 .env（API keys、镜像、RPi 参数全在一起）。
+# 不存在时自动从 .env.example 复制。
+team_env="${REPO_ROOT}/teams/${team_name}/.env"
+if [[ ! -f "$team_env" ]]; then
+    mkdir -p "$(dirname "$team_env")"
+    echo "Initializing teams/${team_name}/.env from .env.example..."
+    cp "${REPO_ROOT}/.env.example" "$team_env"
+    echo "请编辑 teams/${team_name}/.env 填入 API keys 等配置。"
 fi
 
 # --------------------------------------------------------------------------- #
 # Resolve team → data directory
 # --------------------------------------------------------------------------- #
 data_dir="${REPO_ROOT}/teams/${team_name}"
-mkdir -p "${data_dir}"
 
 # --------------------------------------------------------------------------- #
 # Export overrides（CLI 参数 → 环境变量，优先级高于 .env 文件）
@@ -110,7 +114,8 @@ export TZ="${TZ:-$(cat /etc/timezone 2>/dev/null || echo UTC)}"
 # --------------------------------------------------------------------------- #
 # Compose command
 # --------------------------------------------------------------------------- #
-compose_cmd=(docker compose -f "${REPO_ROOT}/docker-compose.yml")
+# --env-file 指向团队 .env 作为唯一配置来源
+compose_cmd=(docker compose -f "${REPO_ROOT}/docker-compose.yml" --env-file "$team_env")
 
 # --------------------------------------------------------------------------- #
 # Image build (if --build)

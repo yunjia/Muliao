@@ -41,20 +41,20 @@ sudo timedatectl set-timezone Asia/Shanghai   # 按实际时区填写
 第二步：在 `/home/muliao/.env` 中显式设置 `TZ`（**这才是关键**）：
 
 ```bash
-echo "TZ=Asia/Shanghai" >> /home/muliao/.env
-sudo systemctl restart muliao.service
+echo "TZ=Asia/Shanghai" >> /home/muliao/.openclaw/.env
+systemctl --user restart openclaw-gateway.service
 ```
 
-第三步：确认容器正常启动：
+第三步：确认 gateway 正常启动：
 
 ```bash
-docker logs muliao --tail 30
+openclaw gateway status
 ```
 
-**为什么修复宿主机时区还不够？**
+**为什什修复宿主机时区还不够？**
 
-`timedatectl` 改了系统时区，但容器通过 `compose` 拿 env var，读的是 `.env` 文件。
-`.env` 中没有 `TZ`，容器仍然拿到空字符串，问题不解。
+`timedatectl` 改了系统时区，但 OpenClaw gateway 通过 EnvironmentFile 读取 `~/.openclaw/.env`。
+`.env` 中没有 `TZ`，gateway 仍然拿到空字符串，问题不解。
 必须在 `.env` 里显式声明 `TZ` 才能生效。
 
 **预防措施**
@@ -68,18 +68,18 @@ docker logs muliao --tail 30
 
 **现象**
 
-容器启动时报 Docker 无法读取 `/home/muliao/.env`，或 `docker compose up` 报错。
+OpenClaw gateway 启动时报无法读取 `/home/muliao/.openclaw/.env`。
 
 **根本原因**
 
 `deploy-team.sh` 用 `rsync` 把 `.env` 推到 RPi 时，文件所有者变成了当前 SSH 用户（root 或其他），
-`docker compose` 以 `muliao` 用户身份读取时权限不足。
+`openclaw-gateway.service`（用户服务）以 `muliao` 用户身份读取时权限不足。
 
 **修复方法**
 
 ```bash
-sudo chown muliao:muliao /home/muliao/.env
-sudo chmod 600 /home/muliao/.env
+sudo chown muliao:muliao /home/muliao/.openclaw/.env
+sudo chmod 600 /home/muliao/.openclaw/.env
 ```
 
 **预防措施**
@@ -89,28 +89,28 @@ sudo chmod 600 /home/muliao/.env
 
 ---
 
-## 3. `docker pull ghcr.io/muliaoio/muliao:latest` 报 `unauthorized`
+## 3. OpenClaw gateway 无法启动
 
 **现象**
 
-```
-Error response from daemon: pull access denied for ghcr.io/muliaoio/muliao, repository does not exist or may require 'docker login'
-```
+`systemctl --user status openclaw-gateway.service` 显示 failed。
 
-**根本原因**
+**常见原因**
 
-镜像仓库为私有 GHCR（GitHub Container Registry），需要先登录。
+1. `.deploy-pending` 标记文件还存在（deploy-team.sh 未运行）
+2. `.env` 中缺少必要的 API key
+3. OpenClaw 未正确安装（`openclaw --version` 检查）
 
-**修复方法（临时）**
-
-在 RPi 上手动登录，使用有 `read:packages` 权限的 GitHub PAT：
+**修复方法**
 
 ```bash
-echo "ghp_your_token_here" | docker login ghcr.io -u x-access-token --password-stdin
+# 诊断服务状态
+openclaw doctor
+
+# 查看日志
+journalctl --user -u openclaw-gateway.service -n 50 --no-pager
+
+# 重新安装服务
+openclaw gateway install --force
+systemctl --user restart openclaw-gateway.service
 ```
-
-**长期方案**
-
-1. 在 `teams/<team>/.env` 里填写 `GHCR_TOKEN=ghp_...`
-2. `flash-ssd.sh --ghcr-token` 会自动注入到 cloud-init，新烧录的 RPi 开箱自动登录
-3. 已有 RPi 重新跑 `deploy-team.sh` 后，下次 systemd 启动会带 token 初始化（待完善）

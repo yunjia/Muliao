@@ -9,36 +9,39 @@
 #
 # Description:
 #   将开发机上的团队数据（teams/<name>/ 目录）通过 rsync + SSH 部署到 RPi。
-#   同时同步 docker-compose.yml 和 .env 文件。
+#   同时同步 .env 文件，并安装/启动 OpenClaw gateway 服务。
 #
-#   这是 Phase A 团队辅助部署的核心脚本：
-#   1. flash-ssd.sh 烧录镜像 + cloud-init 安装基础环境
-#   2. RPi 启动后 Docker + Tailscale 就绪
-#   3. ← 本脚本将 OpenClaw 配置 + workspace 推送到 RPi
-#   4. 启动 muliao.service → Hermes 上线
+#   RPi 架构：裸机 Node.js + OpenClaw，Docker 仅用于 Agent Sandbox。
+#   服务管理使用 OpenClaw 官方 systemd 用户服务（openclaw gateway install）。
+#
+#   部署流程：
+#   1. flash-ssd.sh 烧录镜像 + cloud-init 安装 Node.js/OpenClaw/Docker
+#   2. RPi 启动后基础环境就绪（Node.js + OpenClaw + Docker + Tailscale）
+#   3. ← 本脚本将团队数据 + .env 推送到 RPi，并安装 gateway 服务
+#   4. openclaw gateway 启动 → Hermes 上线
 #
 # What gets deployed:
 #   teams/<name>/          →  RPi:/home/muliao/.openclaw/ （OpenClaw 运行时数据）
-#   docker-compose.yml     →  RPi:/home/muliao/         （容器编排配置）
-#   .env                   →  RPi:/home/muliao/.env     （环境变量：API keys 等）
+#   teams/<name>/.env       →  RPi:/home/muliao/.openclaw/.env （环境变量：API keys 等）
 #
 # Options:
 #   <host>            RPi 主机名或 IP（Tailscale hostname 或 LAN IP）
 #   --team NAME       团队名称，对应 teams/<NAME>/（默认：muliao）
 #   --user USER       SSH 用户名（默认：muliao）
-#   --env FILE        .env 文件路径（默认：teams/<name>/.env > 项目根 .env）
+#   --env FILE        .env 文件路径（默认：teams/<name>/.env）
 #   --dry-run         仅显示将同步的内容，不实际执行
-#   --start           部署后启动 muliao.service
-#   --restart         部署后重启 muliao.service
+#   --start           部署后启动 openclaw-gateway
+#   --restart         部署后重启 openclaw-gateway
 #   -h, --help        显示帮助
 #
 # Prerequisites:
 #   - RPi 已通过 flash-ssd.sh 烧录并完成 cloud-init 初始化
+#     （已安装 Node.js 24 + OpenClaw + Docker for sandbox）
 #   - 能通过 SSH 连接到 RPi（Tailscale 或局域网）
 #   - rsync 已安装
 #
 # Examples:
-#   deploy-team.sh muliao-a1b2 --start             # 部署 muliao 团队并启动服务
+#   deploy-team.sh muliao-a1b2 --start             # 部署 muliao 团队并启动 gateway
 #   deploy-team.sh hermes-f3c9 --team hermes --restart  # 部署 hermes 团队并重启
 #   deploy-team.sh muliao-a1b2 --dry-run           # 预览将同步的内容
 #   deploy-team.sh muliao-a1b2 --env /path/to/.env # 使用指定 .env（覆盖自动查找）
@@ -115,7 +118,7 @@ done
 [[ -n "$rpi_host" ]] || die "请指定 RPi 主机名或 IP 地址"
 
 # --------------------------------------------------------------------------- #
-# 解析 .env 文件（优先级：--env > teams/<name>/.env > 根目录 .env）
+# 解析 .env 文件（优先级：--env > teams/<name>/.env）
 # --------------------------------------------------------------------------- #
 if [[ -n "$cli_env_file" ]]; then
     env_file="$cli_env_file"
@@ -124,9 +127,6 @@ if [[ -n "$cli_env_file" ]]; then
 elif [[ -f "${REPO_ROOT}/teams/${team_name}/.env" ]]; then
     env_file="${REPO_ROOT}/teams/${team_name}/.env"
     info ".env 来源: teams/${team_name}/.env"
-elif [[ -f "${REPO_ROOT}/.env" ]]; then
-    env_file="${REPO_ROOT}/.env"
-    info ".env 来源: .env（根目录）"
 fi
 
 # --------------------------------------------------------------------------- #
@@ -137,13 +137,10 @@ command -v rsync >/dev/null 2>&1 || die "rsync 未安装"
 local_data="${REPO_ROOT}/teams/${team_name}"
 [[ -d "$local_data" ]] || die "团队目录不存在: $local_data"
 
-compose_file="${REPO_ROOT}/docker-compose.yml"
-[[ -f "$compose_file" ]] || die "docker-compose.yml 不存在: $compose_file"
-
 if [[ -z "$env_file" ]]; then
-    warn "未找到 .env 文件（已检查: teams/${team_name}/.env, .env）"
+    warn "未找到 .env 文件（已检查: teams/${team_name}/.env）"
+    warn "请先运行: cp .env.example teams/${team_name}/.env"
     warn "RPi 上的 .env 将仅包含基础配置（无 API keys）。"
-    warn "部署后请手动编辑 RPi 上的 /home/muliao/.env 添加 API keys。"
 fi
 
 ssh_target="${ssh_user}@${rpi_host}"
@@ -172,6 +169,7 @@ printf "║  团队:        %-40s ║\n" "$team_name"
 printf "║  本地数据:    %-40s ║\n" "$local_data"
 printf "║  远程路径:    %-40s ║\n" "$REMOTE_DATA"
 printf "║  .env:        %-40s ║\n" "${env_file:-（无）}"
+printf "║  架构:        %-40s ║\n" "裸机 OpenClaw + Docker Sandbox"
 echo "╚══════════════════════════════════════════════════════════╝"
 echo ""
 
@@ -206,49 +204,27 @@ rsync "${rsync_opts[@]}" \
 ok "团队数据同步完成"
 
 # --------------------------------------------------------------------------- #
-# Step 3: Sync docker-compose.yml
-# --------------------------------------------------------------------------- #
-info "同步 docker-compose.yml..."
-rsync "${rsync_opts[@]}" \
-    -e ssh \
-    "$compose_file" \
-    "${ssh_target}:${REMOTE_BASE}/docker-compose.yml"
-ok "docker-compose.yml 同步完成"
-
-# --------------------------------------------------------------------------- #
-# Step 4: Deploy .env
+# Step 3: Deploy .env → ~/.openclaw/.env（OpenClaw systemd EnvironmentFile 位置）
 # --------------------------------------------------------------------------- #
 if [[ -n "$env_file" ]]; then
-    info "同步 .env..."
+    info "同步 .env → ${REMOTE_DATA}/.env..."
 
-    # 生成 RPi 专用 .env（确保 MULIAO_DATA_DIR 指向正确路径）
+    # 生成 RPi 专用 .env（移除 Docker-only 变量）
     tmpenv=$(mktemp)
-    # 从开发机 .env 复制，覆盖 RPi 特有的值
     cp "$env_file" "$tmpenv"
 
-    # 确保 MULIAO_DATA_DIR 指向 RPi 路径
-    if grep -q '^MULIAO_DATA_DIR=' "$tmpenv"; then
-        sed -i "s|^MULIAO_DATA_DIR=.*|MULIAO_DATA_DIR=${REMOTE_DATA}|" "$tmpenv"
-    elif grep -q '^#MULIAO_DATA_DIR=' "$tmpenv"; then
-        sed -i "s|^#MULIAO_DATA_DIR=.*|MULIAO_DATA_DIR=${REMOTE_DATA}|" "$tmpenv"
-    else
-        echo "MULIAO_DATA_DIR=${REMOTE_DATA}" >> "$tmpenv"
-    fi
-
-    # 确保容器名称设置
-    if ! grep -q '^MULIAO_CONTAINER_NAME=' "$tmpenv"; then
-        echo "MULIAO_CONTAINER_NAME=muliao" >> "$tmpenv"
-    fi
+    # 移除 Docker-only 变量（RPi 裸机不需要）
+    sed -i '/^MULIAO_IMAGE=/d; /^MULIAO_CONTAINER_NAME=/d; /^MULIAO_DATA_DIR=/d' "$tmpenv"
 
     rsync "${rsync_opts[@]}" \
         -e ssh \
         --chmod=F600 \
         "$tmpenv" \
-        "${ssh_target}:${REMOTE_BASE}/.env"
+        "${ssh_target}:${REMOTE_DATA}/.env"
     rm -f "$tmpenv"
 
-    # 确保文件属主正确（rsync 有时会保留临时文件属主）
-    ssh "$ssh_target" "sudo chown ${ssh_user}:${ssh_user} ${REMOTE_BASE}/.env && sudo chmod 600 ${REMOTE_BASE}/.env"
+    # 确保文件属主正确
+    ssh "$ssh_target" "sudo chown ${ssh_user}:${ssh_user} ${REMOTE_DATA}/.env && sudo chmod 600 ${REMOTE_DATA}/.env"
 
     ok ".env 同步完成"
 else
@@ -256,10 +232,35 @@ else
 fi
 
 # --------------------------------------------------------------------------- #
-# Step 5: Remove deploy-pending marker
+# Step 4: Remove deploy-pending marker
 # --------------------------------------------------------------------------- #
 if [[ "$dry_run" -eq 0 ]]; then
     ssh "$ssh_target" "rm -f ${REMOTE_BASE}/.deploy-pending" 2>/dev/null || true
+fi
+
+# --------------------------------------------------------------------------- #
+# Step 5: Install/refresh OpenClaw gateway systemd service
+# --------------------------------------------------------------------------- #
+if [[ "$dry_run" -eq 0 ]]; then
+    info "安装 OpenClaw gateway 服务..."
+
+    # 安装/刷新 systemd 用户服务（openclaw gateway install 自动生成 unit）
+    ssh "$ssh_target" "openclaw gateway install" || warn "openclaw gateway install 失败，可能需要手动执行"
+
+    # RPi 性能调优 drop-in
+    info "写入 RPi 性能调优配置..."
+    ssh "$ssh_target" bash -s <<'TUNING_EOF'
+mkdir -p ~/.config/systemd/user/openclaw-gateway.service.d/
+cat > ~/.config/systemd/user/openclaw-gateway.service.d/rpi-tuning.conf <<'EOF'
+[Service]
+Environment=OPENCLAW_NO_RESPAWN=1
+Environment=NODE_COMPILE_CACHE=/var/tmp/openclaw-compile-cache
+RestartSec=2
+TimeoutStartSec=90
+EOF
+systemctl --user daemon-reload
+TUNING_EOF
+    ok "gateway 服务已安装"
 fi
 
 # --------------------------------------------------------------------------- #
@@ -267,17 +268,17 @@ fi
 # --------------------------------------------------------------------------- #
 if [[ "$dry_run" -eq 0 ]]; then
     if [[ "$do_restart" -eq 1 ]]; then
-        info "重启 muliao.service..."
-        ssh "$ssh_target" "sudo systemctl restart muliao.service"
-        ok "服务已重启"
+        info "重启 openclaw-gateway..."
+        ssh "$ssh_target" "systemctl --user restart openclaw-gateway.service"
+        ok "gateway 已重启"
     elif [[ "$do_start" -eq 1 ]]; then
-        info "启动 muliao.service..."
-        ssh "$ssh_target" "sudo systemctl start muliao.service"
-        ok "服务已启动"
+        info "启动 openclaw-gateway..."
+        ssh "$ssh_target" "systemctl --user enable --now openclaw-gateway.service"
+        ok "gateway 已启动"
     else
         echo ""
-        info "数据已部署。启动服务："
-        echo "  ssh ${ssh_target} 'sudo systemctl start muliao.service'"
+        info "数据已部署。启动 gateway："
+        echo "  ssh ${ssh_target} 'systemctl --user enable --now openclaw-gateway.service'"
         echo ""
         echo "或重新运行本脚本加 --start 参数："
         echo "  $0 ${rpi_host} --team ${team_name} --start"
@@ -289,20 +290,23 @@ fi
 # --------------------------------------------------------------------------- #
 if [[ "$dry_run" -eq 0 && ("$do_start" -eq 1 || "$do_restart" -eq 1) ]]; then
     echo ""
-    info "等待服务启动 (10s)..."
+    info "等待 gateway 启动 (10s)..."
     sleep 10
 
     # 检查服务状态
-    if ssh "$ssh_target" "systemctl is-active muliao.service" &>/dev/null; then
-        ok "muliao.service 运行中"
+    if ssh "$ssh_target" "systemctl --user is-active openclaw-gateway.service" &>/dev/null; then
+        ok "openclaw-gateway 运行中"
 
-        # 检查容器状态
-        info "容器状态:"
-        ssh "$ssh_target" "docker ps --filter name=muliao --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}'" || true
+        # 检查 gateway 状态
+        info "Gateway 状态:"
+        ssh "$ssh_target" "openclaw gateway status" || true
     else
         echo ""
-        warn "muliao.service 未在运行。查看日志："
-        echo "  ssh ${ssh_target} 'journalctl -u muliao.service -n 50 --no-pager'"
+        warn "openclaw-gateway 未在运行。查看日志："
+        echo "  ssh ${ssh_target} 'journalctl --user -u openclaw-gateway.service -n 50 --no-pager'"
+        echo ""
+        echo "诊断："
+        echo "  ssh ${ssh_target} 'openclaw doctor'"
     fi
 fi
 

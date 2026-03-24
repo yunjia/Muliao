@@ -3,6 +3,8 @@
 # Muliao RPi 5 — cloud-init user-data
 # ==============================================================================
 #
+# 架构：裸机 Node.js + OpenClaw，Docker 仅用于 Agent Sandbox
+#
 # 放置位置：Ubuntu Server ARM64 镜像 system-boot 分区根目录
 # 首次启动时 cloud-init 自动执行，完成所有初始化。
 #
@@ -50,31 +52,49 @@ packages:
   - console-setup         # 控制台字体配置
   - xfonts-terminus       # Terminus 像素字体（终端清晰锐利）
   - network-manager       # nmcli WiFi 管理工具
+  # ── 常用 Skill / 浏览器依赖（从 Dockerfile 迁移） ──
+  - ffmpeg
+  - ripgrep
+  - wget
+  - git
+  - libnss3
+  - libatk-bridge2.0-0
+  - libcups2
+  - libdrm2
+  - libxkbcommon0
+  - libxcomposite1
+  - libxdamage1
+  - libxfixes3
+  - libxrandr2
+  - libgbm1
+  - libasound2
+  - fonts-noto-cjk
+  - fonts-noto-color-emoji
 
 # --------------------------------------------------------------------------- #
 # 文件写入
 # --------------------------------------------------------------------------- #
 write_files:
-  # muliao.service 从 boot 分区复制（见 runcmd），源文件：deploy/rpi/muliao.service
-
-  # docker-compose.yml 占位（deploy-team.sh 会覆盖为最新版本）
-  # 这里写一个最小版本确保 muliao.service 不会启动失败
   - path: /home/muliao/.deploy-pending
     permissions: "0644"
     content: |
       # 此文件表示 deploy-team.sh 尚未执行。
-      # muliao.service 不会自动启动，直到团队数据部署完成。
+      # OpenClaw gateway 不会启动，直到团队数据部署完成。
       # 运行 deploy-team.sh 后此文件会被删除。
 
-  # .env 模板（deploy-team.sh 会覆盖）
-  - path: /home/muliao/.env
-    permissions: "0600"
+  # npm 全局包安装到用户目录（避免 sudo，便于 Agent 自行安装 Skill 依赖）
+  - path: /home/muliao/.npmrc
+    permissions: "0644"
     owner: muliao:muliao
     content: |
-      # Muliao RPi 环境变量（由 deploy-team.sh 自动生成）
-      MULIAO_DATA_DIR=/home/muliao/.openclaw
-      MULIAO_CONTAINER_NAME=muliao
-      MULIAO_IMAGE=ghcr.io/muliaoio/muliao:latest
+      prefix=/home/muliao/.npm-global
+
+  # 将 npm-global/bin 加入 PATH（login shell + systemd 用户服务都能找到）
+  - path: /home/muliao/.profile.d/npm-global.sh
+    permissions: "0644"
+    owner: muliao:muliao
+    content: |
+      export PATH="/home/muliao/.npm-global/bin:$PATH"
 
 # --------------------------------------------------------------------------- #
 # 执行命令
@@ -103,13 +123,32 @@ runcmd:
     # 保存供后续步骤使用
     echo "$FINAL_HOSTNAME" > /tmp/.muliao-hostname
 
-  # ── muliao.service（从 boot 分区复制，flash-ssd.sh 已放置）──
-  - cp /boot/firmware/muliao.service /etc/systemd/system/muliao.service
+  # ── Node.js 24（NodeSource APT） ──
+  - curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
+  - apt-get install -y nodejs
 
-  # ── Docker CE ──
+  # ── npm 全局目录（muliao 用户无需 sudo 安装全局包） ──
+  - |
+    sudo -u muliao mkdir -p /home/muliao/.npm-global/bin
+    # 确保 .profile.d 片段能被 .bashrc 加载
+    sudo -u muliao mkdir -p /home/muliao/.profile.d
+    if ! grep -q 'profile.d' /home/muliao/.bashrc 2>/dev/null; then
+      echo '# Load profile.d snippets' >> /home/muliao/.bashrc
+      echo 'for f in ~/.profile.d/*.sh; do [ -r "$f" ] && . "$f"; done' >> /home/muliao/.bashrc
+    fi
+
+  # ── OpenClaw（裸机全局安装） ──
+  - |
+    export PATH="/home/muliao/.npm-global/bin:$PATH"
+    sudo -u muliao -i bash -c 'npm install -g openclaw@latest'
+
+  # ── Docker CE（仅用于 Agent Sandbox） ──
   - curl -fsSL https://get.docker.com | sh
   - systemctl enable docker
   - usermod -aG docker muliao
+
+  # ── 启用 systemd lingering（用户服务在 logout 后仍运行） ──
+  - loginctl enable-linger muliao
 
   # ── Tailscale ──
   - curl -fsSL https://tailscale.com/install.sh | sh
@@ -128,18 +167,10 @@ runcmd:
 
   # ── 目录结构 ──
   - mkdir -p /home/muliao/.openclaw
+  - chown -R muliao:muliao /home/muliao
 
-  # ── 预拉取 Docker 镜像（首次启动需要时间，提前拉好） ──
-  - |
-    GHCR_TOKEN="__GHCR_TOKEN__"
-    if [ -n "$GHCR_TOKEN" ] && [ "$GHCR_TOKEN" != "__GHCR_TOKEN__" ]; then
-      echo "$GHCR_TOKEN" | docker login ghcr.io -u x-access-token --password-stdin
-    fi
-  - docker pull ghcr.io/muliaoio/muliao:latest || true
-  - docker pull containrrr/watchtower || true
-
-  # ── 启用 muliao.service（不立即启动，等 deploy-team.sh 部署数据后启动） ──
-  - systemctl enable muliao.service
+  # ── 预拉取 sandbox 基础镜像（加速首次 sandbox 启动） ──
+  - docker pull debian:bookworm-slim || true
 
   # ── 完成标记 ──
   - |
@@ -153,8 +184,6 @@ runcmd:
     if [ -f "$USERDATA" ]; then
       sed -i \
         -e 's/tskey-auth-[A-Za-z0-9_-]\{1,\}/tskey-auth-REDACTED/g' \
-        -e 's/ghp_[A-Za-z0-9_]\{1,\}/ghp_REDACTED/g' \
-        -e 's/github_pat_[A-Za-z0-9_]\{1,\}/github_pat_REDACTED/g' \
         "$USERDATA"
     fi
 
