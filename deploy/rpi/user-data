@@ -6,11 +6,11 @@
 # 放置位置：Ubuntu Server ARM64 镜像 system-boot 分区根目录
 # 首次启动时 cloud-init 自动执行，完成所有初始化。
 #
-# 自定义项（flash-ssd.sh 会自动替换这些占位符）：
-#   __HOSTNAME__          主机名前缀（默认：muliao，启动时自动追加芯片序列号后4位）
-#   __TAILSCALE_AUTHKEY__  Tailscale pre-auth key（远程访问需要）
-#   __TIMEZONE__          时区（默认：开发机当前时区）
-#   __SSH_PUBKEY__        SSH 公钥（可选，Tailscale SSH 已够用）
+# flash-ssd.sh 会替换以下占位符（不在注释中使用，避免破坏 YAML）：
+#   HOSTNAME_PREFIX     主机名前缀（默认：muliao）
+#   TAILSCALE_AUTHKEY   Tailscale pre-auth key
+#   TIMEZONE            时区（默认：开发机当前时区）
+#   SSH_PUBKEY          SSH 公钥
 # ==============================================================================
 
 hostname: __HOSTNAME__

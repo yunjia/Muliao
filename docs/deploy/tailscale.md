@@ -223,3 +223,66 @@ tailscale ip                                               # 查看本机 Tailsc
 ssh ubuntu@<tailscale-ip>                                  # SSH 进 RPi
 cli/backup.sh pull --from ubuntu@<tailscale-ip> --team lijie  # 拉取备份
 ```
+
+---
+
+## 九、WSL2 安装 Tailscale 并连接 RPi
+
+WSL2 下 `.local` mDNS 解析不可靠，推荐通过 Tailscale 连接 RPi。
+
+### 安装
+
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+```
+
+### 启动与登录
+
+**方式 A：WSL2 支持 systemd（Windows 11 + 较新 WSL 版本）**
+
+```bash
+sudo systemctl enable --now tailscaled
+sudo tailscale up
+```
+
+**方式 B：WSL2 无 systemd**
+
+```bash
+sudo tailscaled --tun=userspace-networking &
+sudo tailscale up
+```
+
+`tailscale up` 会输出一个 `https://login.tailscale.com/a/...` 链接，复制到 Windows 浏览器中打开，用和 RPi 烧录时**同一个 Tailscale 账号**登录。
+
+### 确认连接
+
+```bash
+tailscale status
+```
+
+应该能看到 WSL2 和 RPi 都在列表中：
+
+```
+100.x.x.x   wsl2-xxx         你的开发机
+100.x.x.y   muliao-a820      RPi
+```
+
+### SSH 到 RPi
+
+```bash
+# 通过 Tailscale 主机名（推荐）
+ssh muliao@muliao-a820
+
+# 或通过 Tailscale IP
+ssh muliao@100.x.x.y
+```
+
+### 常见问题
+
+| 问题 | 解决 |
+|------|------|
+| `tailscaled not running` | 先运行 `sudo tailscaled --tun=userspace-networking &` |
+| 浏览器链接无法打开 | 手动复制链接到 Windows 浏览器 |
+| `tailscale status` 看不到 RPi | 确认 RPi 和 WSL2 登录的是**同一个 Tailscale 账号** |
+| WSL2 网络不通 | 尝试加 `--tun=userspace-networking` 参数启动 tailscaled |
+| `ssh muliao@xxx.local` 失败 (exit 255) | WSL2 的 mDNS 支持有限，改用 Tailscale 主机名连接 |
