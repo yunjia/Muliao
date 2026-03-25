@@ -18,7 +18,7 @@
     fix-md.prompt.md          # /fix-md — 修复 Markdown 格式 warning/error
     plan/                     # 规划类 prompt
 cli/
-  backup.sh                   # 团队 workspace 备份/恢复工具
+  backup.sh                   # 团队 workspace 备份/恢复工具（含 RPi 远程拉取/推送）
   dev.sh                      # Multipass 开发 VM 管理（launch/shell/gateway 等）
 deploy/
   cloud-init/
@@ -29,7 +29,9 @@ deploy/
   rpi/
     flash-ssd.sh              # RPi SSD 烧录 + cloud-init 注入
     deploy-team.sh            # 团队数据远程部署
-.env.example                  # 环境变量模板（复制为 .env）
+    user-data                 # 已渲染的 cloud-init user-data（flash-ssd.sh 输出产物）
+    wsl-mount.sh              # WSL2 下挂载/卸载 SSD 的辅助脚本
+.env.example                  # 环境变量模板（复制为 .env，详见 docs/deploy/env-reference.md）
 docs/
   design.md                   # 技术设计：8 维差异化、优先级、路线图
   business-model.md           # 三层商业模式：开源中间件 → 自给 → 垂直 SaaS
@@ -38,6 +40,15 @@ docs/
     natural-growth.md         # HR 驱动的团队级进化机制
   deploy/
     RPi 5 部署方案.prompt.md  # 树莓派硬件方案 + PWA Relay 架构
+    env-reference.md          # 所有环境变量的完整参考（含说明与默认值）
+    tailscale.md              # Tailscale 配置指南（含 WSL2 安装与连接说明）
+    troubleshooting.md        # 常见部署问题排查
+  development/
+    0. MVP.md                 # MVP 阶段计划与 Day-by-Day 任务拆解
+    dev-workflow.md           # 开发工作流（分支策略、本地调试、发布流程）
+  openclaw/
+    manifest.yaml             # OpenClaw 团队/workspace 配置 manifest 示例
+    slack-socket-mode.md      # Slack Socket Mode 配置指南
   scenarios/
     research-assistant/       # 论文追踪助手分阶段实施方案
 readme.md                     # 项目简介（面向用户）
@@ -103,6 +114,12 @@ cli/backup.sh list [--team NAME]          # 列出可用备份
 | [docs/target-customers.md](../docs/target-customers.md) | 四类用户画像（丽姐/文哲/小雅/老陈） |
 | [docs/design/natural-growth.md](../docs/design/natural-growth.md) | 团队自然成长机制（观察反馈、经验迁移、审批变更） |
 | [docs/deploy/RPi 5 部署方案.prompt.md](../docs/deploy/RPi%205%20部署方案.prompt.md) | 树莓派消费级硬件方案、WebSocket Relay |
+| [docs/deploy/env-reference.md](../docs/deploy/env-reference.md) | 所有环境变量参考（含说明与默认值） |
+| [docs/deploy/tailscale.md](../docs/deploy/tailscale.md) | Tailscale 网络配置（WSL2 + RPi） |
+| [docs/deploy/troubleshooting.md](../docs/deploy/troubleshooting.md) | 常见部署问题排查 |
+| [docs/development/0. MVP.md](../docs/development/0. MVP.md) | MVP 阶段计划与 Day-by-Day 任务拆解 |
+| [docs/development/dev-workflow.md](../docs/development/dev-workflow.md) | 开发工作流（分支策略、本地调试、发布） |
+| [docs/openclaw/slack-socket-mode.md](../docs/openclaw/slack-socket-mode.md) | Slack Socket Mode 配置指南 |
 
 ---
 

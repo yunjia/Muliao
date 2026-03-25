@@ -1,6 +1,5 @@
 ---
-description: "根据当前 git 变更生成中文 Conventional Commits 格式的 commit message"
-agent: agent
+description: 根据当前 git 变更生成中文 Conventional Commits 格式的 commit message
 ---
 
 结合当前对话上下文与 git 变更，生成一条中文 Conventional Commits 格式的 commit message，放在代码块中方便复制。
