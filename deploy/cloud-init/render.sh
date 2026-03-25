@@ -274,7 +274,7 @@ substitute_vars() {
 # --------------------------------------------------------------------------- #
 # Main
 # --------------------------------------------------------------------------- #
-info "合并: $(basename "$base_file") + $(printf '%s ' "${overlay_files[@]/#/$(basename )")"
+info "合并: $(basename "$base_file") + $(printf '%s ' "${overlay_files[@]##*/}")"
 
 merged=$(merge "$base_file" "${overlay_files[@]}")
 

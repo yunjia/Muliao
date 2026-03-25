@@ -192,7 +192,7 @@ do_launch() {
 
     # 渲染 cloud-init user-data
     local user_data
-    user_data=$(mktemp /tmp/muliao-cloud-init-XXXXXX.yaml)
+    user_data=$(mktemp "$HOME/muliao-cloud-init-XXXXXX.yaml")
 
     info "渲染 cloud-init user-data..."
     "${CLOUD_INIT_DIR}/render.sh" \
@@ -201,6 +201,7 @@ do_launch() {
         --var "HOSTNAME=${name}" \
         --var "TIMEZONE=${timezone}" \
         -o "$user_data"
+    chmod 644 "$user_data"
 
     # 启动 VM
     info "创建 VM: ${name}（${CPUS} CPU, ${MEMORY} RAM, ${DISK} disk）..."
